@@ -1,0 +1,11 @@
+
+----------------------------------------------------------------------------------------------------------------------
+Feb 24, 2024
+réaliser un serveur web
+coding style : https://www.sceen.net/~rbraun/x15/doc/style.9.html
+first step : 
+* accepter un client tcp et faire une réponse => on se connecte au serveur et le serveur répond "serveur pas implémenté"
+* à utiliser : poll, socket, bind/listen, accept, send/recv, shutdown, close, c10k
+* notion client server
+second step : 
+accepter plusieurs clients : 1 client 1 thread, une boucle evenmentielle(boucle qui réagit à un appel système) par thread...
