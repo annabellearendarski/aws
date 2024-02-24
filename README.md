@@ -1,0 +1,2 @@
+# aws
+my first server
