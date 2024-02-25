@@ -1,4 +1,8 @@
-
+Feb 25, 2024
+read coding style guideline
+review some notions : inline functions, branch prediction, OSI/TCP-IP models, TCP/UDP
+get familiar with VsCode and usage of makefile with it
+started to write a Makefile following the example from X1 project.
 ----------------------------------------------------------------------------------------------------------------------
 Feb 24, 2024
 réaliser un serveur web
