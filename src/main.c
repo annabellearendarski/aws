@@ -1,11 +1,13 @@
 #include <errno.h>
+#include <netinet/in.h>
+#include <poll.h>
+#include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <stdlib.h>
-#include <netinet/in.h>
-
 #include <unistd.h>
-#include <poll.h>
+
 
 /*
 * tcp server implementation
@@ -27,9 +29,10 @@ main(void)
     socklen_t  client_addr_size;
     struct pollfd  pfds[MAX_NB_FD];
     int num_open_fds=1;
+    int current_size;
     char *rspBuff="ServerNotImplemented";
-
     char *readBuf[4];
+    bool conn_to_close;
 
   
     servfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -64,52 +67,75 @@ main(void)
     
     while(1){
     
-        ret=poll(pfds, num_open_fds, -1);
-
+        ret=poll(pfds, num_open_fds, 1);
+        
         if (ret == -1){
             perror("Poll error:");
             exit(EXIT_FAILURE);
         }
+        current_size=num_open_fds;
 
-        for(int i=0;i<num_open_fds;i++) {
-            printf("tracking %d\n",i);
-
-            if (!pfds[i].revents) {
+        for(int i=0;i<current_size;i++) {
+            conn_to_close= false;
+            if (pfds[i].revents==0) {
                 continue;
             }
 
             if(pfds[i].revents == POLLIN) {
-
-                if (i == 0){
-                    printf("polling on id0");
+                printf("event on %d\n",i);
+                if (pfds[i].fd == servfd ){
+                    printf("polling on id servd %d %d",pfds[i].fd,servfd);
                     if(num_open_fds == MAX_NB_FD){
                         printf("Cannot accept more socket\n Socket sent is ignored");
                         continue;
                     }
 
                     client_addr_size = sizeof(client_addr);
-                    clientfd = accept(pfds[0].fd, (struct sockaddr *) &client_addr, &client_addr_size);
-                    num_open_fds = num_open_fds + 1;
+                    clientfd = accept(servfd, (struct sockaddr *) &client_addr, &client_addr_size);
                     pfds[num_open_fds].fd = clientfd;
                     pfds[num_open_fds].events = POLLIN;
+                    printf("new client %d\n",num_open_fds);
+                    num_open_fds = num_open_fds + 1;
                     
-
-
                 }
                 else{
-
-                    ret = read(pfds[i].fd, readBuf, sizeof(readBuf));
+                    printf("polling on %d",pfds[i].fd);
+                    ret = recv(pfds[i].fd, readBuf, sizeof(readBuf),0);
 
                     if (ret == -1){
                         perror("Read error:");
-                        exit(EXIT_FAILURE);
+                        conn_to_close=true;
+                    }
+                    else if (ret == 0){
+                        conn_to_close=true;
                     }
                     else{
-                        write(clientfd, rspBuff, sizeof(rspBuff));
+                        send(pfds[i].fd, rspBuff, strlen(rspBuff)+1,0);
                     }
 
                 }
-            } 
+            }
+            else{
+                conn_to_close=true;
+            }
+
+            if (conn_to_close == true){
+                pfds[i].fd=-1;
+            }
+
+        }
+
+        for (int i = 0; i < num_open_fds; i++)
+        {
+            if (pfds[i].fd == -1)
+            {
+                for(int j = i; j < num_open_fds-1; j++)
+                {
+                    pfds[j].fd = pfds[j+1].fd;
+                }
+                i--;
+                num_open_fds--;
+            }
         }
     }
                
