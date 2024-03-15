@@ -31,7 +31,7 @@ main(void)
     int num_open_fds=1;
     int current_size;
     char *rspBuff="ServerNotImplemented";
-    char *readBuf[4];
+    char readBuf[4];
     bool conn_to_close;
 
   
@@ -41,8 +41,6 @@ main(void)
         perror("socket creation error:"); 
         exit(EXIT_FAILURE);
     }
-    printf("Socket\n");
-
 
     serv_addr.sin_family=AF_INET;
     serv_addr.sin_port = htons(PORT);
@@ -53,9 +51,8 @@ main(void)
         perror("Bind error:");
         exit(EXIT_FAILURE);
     }
-    printf("preListen\n");
+
     ret=listen(servfd, SERVER_BACKLOG_SIZE);
-    printf("postisten\n");
     
     if (ret == -1){
         perror("Listen error:");
@@ -73,18 +70,20 @@ main(void)
             perror("Poll error:");
             exit(EXIT_FAILURE);
         }
-        current_size=num_open_fds;
 
+        current_size=num_open_fds;
+        
         for(int i=0;i<current_size;i++) {
             conn_to_close= false;
+
             if (pfds[i].revents==0) {
                 continue;
             }
 
             if(pfds[i].revents == POLLIN) {
-                printf("event on %d\n",i);
+
                 if (pfds[i].fd == servfd ){
-                    printf("polling on id servd %d %d",pfds[i].fd,servfd);
+
                     if(num_open_fds == MAX_NB_FD){
                         printf("Cannot accept more socket\n Socket sent is ignored");
                         continue;
@@ -94,14 +93,12 @@ main(void)
                     clientfd = accept(servfd, (struct sockaddr *) &client_addr, &client_addr_size);
                     pfds[num_open_fds].fd = clientfd;
                     pfds[num_open_fds].events = POLLIN;
-                    printf("new client %d\n",num_open_fds);
                     num_open_fds = num_open_fds + 1;
                     
                 }
                 else{
-                    printf("polling on %d",pfds[i].fd);
                     ret = recv(pfds[i].fd, readBuf, sizeof(readBuf),0);
-
+                    
                     if (ret == -1){
                         perror("Read error:");
                         conn_to_close=true;
@@ -125,12 +122,9 @@ main(void)
 
         }
 
-        for (int i = 0; i < num_open_fds; i++)
-        {
-            if (pfds[i].fd == -1)
-            {
-                for(int j = i; j < num_open_fds-1; j++)
-                {
+        for (int i = 0; i < num_open_fds; i++){
+            if (pfds[i].fd == -1){
+                for(int j = i; j < num_open_fds-1; j++){
                     pfds[j].fd = pfds[j+1].fd;
                 }
                 i--;
