@@ -6,7 +6,9 @@ CFLAGS += -Wall -Wextra -Wmissing-prototypes -Wstrict-prototypes
 CFLAGS += -Wshadow
 
 SOURCES = \
-	src/main.c
+	src/main.c \
+	src/client.c \
+	src/server.c \
 
 OBJECTS = $(patsubst %.S,%.o,$(patsubst %.c,%.o,$(SOURCES)))
 

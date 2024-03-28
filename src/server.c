@@ -11,7 +11,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-struct pollfd  psocketds[MAX_NB_FD];
+struct pollfd psocketds[MAX_NB_FD];
 int num_tracked_socketd = 0;
 
 void
@@ -43,13 +43,10 @@ server_tcp_ip_init(struct server *server){
     }
     list_init(&server->clients);
 
-    struct client server_client;
-    client_init(&server_client,server->socketd);
-    server_add_client(server,&server_client);
 }
 
 int
-server_poll(struct server *server){
+server_poll(void){
     int ret;
 
     ret = poll(psocketds, num_tracked_socketd, 1);
@@ -64,22 +61,30 @@ server_remove_from_poll(int client_poll_idx){
 }
 
 static void
-server_remove_client(struct server *server,struct client *client){
+server_remove_client(struct client *client){
     list_remove(&client->node);
     server_remove_from_poll(client->poll_idx);
 }
 
+bool
+server_is_pollin_revent(struct client *client){
+    if (psocketds[client->poll_idx].revents == POLLIN){
+        return 1;
+    }
+    else{
+        return 0;
+    }
+}
 
 
 void
-server_manage_revent(struct server *server,struct client *client){
+server_manage_pollin_revent(struct client *client){
     int ret;
     bool is_conn_to_close;
     
-    if(psocketds[client->socketd].revents == POLLIN) {
+    
         ret = recv(psocketds[client->socketd].fd, client->read_buf, strlen(client->read_buf) + 1,0);
         is_conn_to_close= (ret == 0 || ret == -1);
-        
         if (is_conn_to_close) {
             //goto close_conn;
             printf("error");
@@ -87,7 +92,7 @@ server_manage_revent(struct server *server,struct client *client){
         else{
             send(psocketds[client->socketd].fd, client->rsp_buf, strlen(client->rsp_buf) +1 ,0);
         }
-    }
+    
 
 /*close_conn:
         server_remove_client(server,client);*/

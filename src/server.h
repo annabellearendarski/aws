@@ -19,8 +19,9 @@ struct server {
 };
 
 void server_tcp_ip_init(struct server *server);
-int server_poll(struct server *server);
-void server_manage_revent(struct server *server,struct client *client);
+int server_poll(void);
+bool server_is_pollin_revent(struct client *client);
+void server_manage_pollin_revent(struct client *client);
 int server_accept_client(struct server *server,struct client *client);
 bool server_is_new_client_connection(struct server *server,struct client *client);
 void server_add_client(struct server *server,struct client *client);
