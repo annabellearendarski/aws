@@ -1,21 +1,21 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
-#include <poll.h>
-#include <sys/socket.h>
-#include "list.h"
 #include <netinet/in.h>
+#include <string.h>
+#include <sys/socket.h>
+
+#include <poll.h>
 
 struct client {
-    struct sockaddr_in client_addr;
-    socklen_t  client_addr_size;
-    const char *rsp_buf;
-    char read_buf[4];
-    int socketd;
-    struct list node;
-    int poll_idx;
+    int fd;
+    size_t index;
+    char recv_buf[10];
+    const char *send_buf;
 };
 
-void client_init(struct client *client,int socketd);
-void client_set_poll_idx(struct client *client, int poll_idx);
+void client_init(struct client *client, int fd, size_t index);
+void client_set_fd(struct client *client, int fd);
+int client_pollin_behaviour(struct client *client);
+
 #endif /* CLIENT_H */

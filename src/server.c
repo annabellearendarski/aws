@@ -1,146 +1,234 @@
-#include "client.h"
+#include <assert.h>
 #include <errno.h>
-#include "list.h"
 #include <netinet/in.h>
 #include <poll.h>
-#include "server.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
-struct pollfd psocketds[MAX_NB_FD];
-int num_tracked_socketd = 0;
+#include "client.h"
+#include "macro.h"
+#include "server.h"
+
+static void
+server_set_fd(struct server *server, int fd)
+{
+    server->fd = fd;
+}
+
+static int
+server_convert_pollfd_index_to_client_index(size_t pollfd_index)
+{
+    int client_index;
+
+    client_index = pollfd_index - 1;
+
+    return client_index;
+}
+
+static struct client *
+server_get_client(struct server *server, size_t index)
+{
+    assert(index > 0);
+    assert(index < ARRAY_SIZE(server->clients));
+
+    return &server->clients[index];
+}
+
+
+static bool
+server_client_is_available(struct client *client)
+{
+    if (client->fd != 0) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+static struct client *
+server_alloc_client(struct server *server, int fd)
+{
+    for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
+        struct client *client;
+        client = server_get_client(server, i);
+
+        if (server_client_is_available(client)) {
+            client_init(client, fd, i);
+            return client;
+        }
+    }
+
+    return NULL;
+}
+
+static void
+server_invalid_pollfd_element(struct server *server, size_t pollfd_index)
+{
+    server->pollfds[pollfd_index].fd = -1;
+    server->pollfds[pollfd_index].events = 0;
+}
+
+static void
+server_invalid_client(struct client *client)
+{
+    client_set_fd(client, 0);
+}
+
+static void
+server_close_client_connection(struct server *server, size_t pollfd_index)
+{
+    size_t client_index;
+    struct client *client;
+    
+    client_index = server_convert_pollfd_index_to_client_index(pollfd_index);
+    client = server_get_client(server, client_index);
+    server_invalid_pollfd_element(server, pollfd_index);
+    server_invalid_client(client);
+    close(client->fd);
+}
+
+static void
+server_add_pollfd_element(struct server *server, size_t pollfd_index, int fd)
+{
+    server->pollfds[pollfd_index].fd = fd;
+    server->pollfds[pollfd_index].events = POLLIN;
+}
 
 void
-server_tcp_ip_init(struct server *server){
+server_tcp_ip_init(struct server *server)
+{
     int ret;
+    int fd;
+    struct sockaddr_in addr;
 
-    server->socketd = socket(AF_INET, SOCK_STREAM, 0);
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+    server_set_fd(server, fd);
 
-    if (server->socketd == -1){
+    if (server->fd == -1) {
         perror("socket creation error:"); 
         exit(EXIT_FAILURE);
     }
 
-    server->serv_addr.sin_family = AF_INET;
-    server->serv_addr.sin_port = htons(PORT);
-    server->serv_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    ret = bind(server->socketd,(struct sockaddr *) &server->serv_addr,sizeof(server->serv_addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(SERVER_PORT);
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    ret = bind(server->fd,(struct sockaddr *) &addr,sizeof(addr));
     
-    if (ret == -1){
+    if (ret == -1) {
         perror("Bind error:");
+        close(server->fd);
         exit(EXIT_FAILURE);
     }
 
-    ret=listen(server->socketd, SERVER_BACKLOG_SIZE);
+    ret=listen(server->fd, SERVER_BACKLOG_SIZE);
     
-    if (ret == -1){
+    if (ret == -1) {
         perror("Listen error:");
+        close(server->fd);
         exit(EXIT_FAILURE);
     }
-    list_init(&server->clients);
 
+    server_add_pollfd_element(server, 0, fd);
 }
 
-int
-server_poll(void){
-    int ret;
+static int
+server_convert_client_index_to_pollfd_index(struct server *server, struct client client)
+{
+    size_t pollfd_index;
 
-    ret = poll(psocketds, num_tracked_socketd, 1);
-    return ret;
-}
+    assert(client.index + 1 < ARRAY_SIZE(server->pollfds));
+    pollfd_index = client.index + 1;
 
-static void
-server_remove_from_poll(int client_poll_idx){
-    for (int i = client_poll_idx - 1; i < num_tracked_socketd -1; i++){  
-        psocketds[i] = psocketds[i+1];
-    }  
+    return pollfd_index;
 }
 
 static void
-server_remove_client(struct client *client){
-    list_remove(&client->node);
-    server_remove_from_poll(client->poll_idx);
+server_accept_client(struct server *server)
+{
+    int fd;
+    struct client *client;
+    struct sockaddr_in client_addr;
+    socklen_t  client_addr_size;
+    
+    client_addr_size = sizeof(client_addr);
+    fd = accept(server->fd, (struct sockaddr *) &client_addr, &client_addr_size);
+    
+    if (fd == -1) {
+        goto fail;
+    }
+
+    client = server_alloc_client(server, fd);
+
+    if (client) {
+        size_t pollfd_index;
+        pollfd_index = server_convert_client_index_to_pollfd_index(server, *client);
+        server_add_pollfd_element(server, pollfd_index, fd);
+    }
+    else {
+        goto fail;
+    }
+
+    return;
+
+fail:
+    perror("cannot accept new client :");
 }
 
-bool
-server_is_pollin_revent(struct client *client){
-    if (psocketds[client->poll_idx].revents == POLLIN){
-        return 1;
-    }
-    else{
-        return 0;
-    }
-}
+void 
+server_poll(struct server *server){
 
+    int nb_events;
+    int client_index;
+    int pollin_ret;
+    struct client *client;
 
-void
-server_manage_pollin_revent(struct client *client){
-    int ret;
-    bool is_conn_to_close;
+    while(1){
     
-    
-        ret = recv(psocketds[client->socketd].fd, client->read_buf, strlen(client->read_buf) + 1,0);
-        is_conn_to_close= (ret == 0 || ret == -1);
-        if (is_conn_to_close) {
-            //goto close_conn;
-            printf("error");
+        nb_events = poll(server->pollfds, ARRAY_SIZE(server->pollfds), 1);
+        
+        if (nb_events == -1){
+            goto fail;
         }
-        else{
-            send(psocketds[client->socketd].fd, client->rsp_buf, strlen(client->rsp_buf) +1 ,0);
+
+        for (size_t i = 0; i < ARRAY_SIZE(server->pollfds); i++) {
+
+            if (server->pollfds[i].revents == 0) {
+                continue;
+            }
+
+            if (server->pollfds[i].fd == server->fd) {
+
+                if (server->pollfds[i].revents == POLLIN) {
+                    server_accept_client(server);
+                }
+            }
+            else{
+
+                if (server->pollfds[i].revents == POLLIN) {
+                    client_index = server_convert_pollfd_index_to_client_index(i);
+                    client = server_get_client(server, client_index);
+                    pollin_ret = client_pollin_behaviour(client);
+                    
+                    if (pollin_ret) {
+                        server_close_client_connection(server, i);
+                        goto fail;
+                    }
+                }
+                else {
+                    server_close_client_connection(server, i);
+                    goto fail;
+                }
+            }        
         }
-    
-
-/*close_conn:
-        server_remove_client(server,client);*/
-    
-}
-
-int
-server_accept_client(struct server *server,struct client *client){
-    int ret;
-
-    if(num_tracked_socketd == MAX_NB_FD-1){
-        printf("Cannot accept more socket\n Socket sent is ignored");
-        ret = -1;
     }
-    else{
-         ret = accept(server->socketd, (struct sockaddr *) &client->client_addr, &client->client_addr_size);
-    }
-    
-    return ret;
+    return;
+
+    fail :
+        perror("Poll error:");
+        close(server->fd);
+        exit(EXIT_FAILURE);
 }
-
-bool
-server_is_new_client_connection(struct server *server,struct client *client){
-    bool client_request_condition;
-
-    client_request_condition = (psocketds[client->poll_idx].revents == POLLIN &&  psocketds[client->poll_idx].fd == server->socketd);
-   
-    if (client_request_condition){
-        return 1;
-    }
-
-    return 0; 
-}
-static void
-server_add_to_poll(int socketd){
-    psocketds[num_tracked_socketd].fd = socketd;
-    psocketds[num_tracked_socketd].events = POLLIN;
-}
-
-void
-server_add_client(struct server *server,struct client *client){
-    server_add_to_poll(client->socketd);
-    client_set_poll_idx(client,num_tracked_socketd);
-    list_insert_head(&server->clients,&client->node);
-    num_tracked_socketd = num_tracked_socketd + 1;
-}
-
-
-
-
-
