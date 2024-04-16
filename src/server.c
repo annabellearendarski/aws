@@ -12,52 +12,34 @@
 #include "macro.h"
 #include "server.h"
 
-static void
-server_set_fd(struct server *server, int fd)
-{
-    server->fd = fd;
-}
-
-static int
-server_convert_pollfd_index_to_client_index(size_t pollfd_index)
-{
-    int client_index;
-
-    client_index = pollfd_index - 1;
-
-    return client_index;
-}
+#define SERVER_PORT                1026
+#define SERVER_BACKLOG_SIZE        2
 
 static struct client *
-server_get_client(struct server *server, size_t index)
+server_retrieve_client(struct server *server, int fd)
 {
-    assert(index > 0);
-    assert(index < ARRAY_SIZE(server->clients));
-
-    return &server->clients[index];
-}
-
-
-static bool
-server_client_is_available(struct client *client)
-{
-    if (client->fd != 0) {
-        return true;
+    for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
+        
+        if (server->clients[i].fd == fd){
+            return &server->clients[i];
+        }
     }
-    else {
-        return false;
-    }
+    return NULL;
 }
 
 static struct client *
 server_alloc_client(struct server *server, int fd)
 {
+    if (fd < 0) {
+        return NULL;
+    }
+
     for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
         struct client *client;
-        client = server_get_client(server, i);
+        client = &server->clients[i];
 
-        if (server_client_is_available(client)) {
-            client_init(client, fd, i);
+        if (client_is_available(client)) {
+            client_init(client, fd);
             return client;
         }
     }
@@ -66,87 +48,58 @@ server_alloc_client(struct server *server, int fd)
 }
 
 static void
-server_invalid_pollfd_element(struct server *server, size_t pollfd_index)
+server_close_client(struct server *server, const struct pollfd pollfd)
 {
-    server->pollfds[pollfd_index].fd = -1;
-    server->pollfds[pollfd_index].events = 0;
-}
-
-static void
-server_invalid_client(struct client *client)
-{
-    client_set_fd(client, 0);
-}
-
-static void
-server_close_client_connection(struct server *server, size_t pollfd_index)
-{
-    size_t client_index;
     struct client *client;
-    
-    client_index = server_convert_pollfd_index_to_client_index(pollfd_index);
-    client = server_get_client(server, client_index);
-    server_invalid_pollfd_element(server, pollfd_index);
-    server_invalid_client(client);
-    close(client->fd);
+
+    client = server_retrieve_client(server, pollfd.fd);
+
+    if (client != NULL) {
+        client_close(client);
+    }
 }
 
-static void
-server_add_pollfd_element(struct server *server, size_t pollfd_index, int fd)
+int
+server_init(struct server *server)
 {
-    server->pollfds[pollfd_index].fd = fd;
-    server->pollfds[pollfd_index].events = POLLIN;
-}
-
-void
-server_tcp_ip_init(struct server *server)
-{
-    int ret;
+    int error = 0;
     int fd;
     struct sockaddr_in addr;
 
     fd = socket(AF_INET, SOCK_STREAM, 0);
-    server_set_fd(server, fd);
-
-    if (server->fd == -1) {
-        perror("socket creation error:"); 
-        exit(EXIT_FAILURE);
+   
+    if (fd == -1) {
+        perror("socket creation error:");
+        return -1;  
     }
+
+    server->fd = fd;
+    memset(server->clients, -1, SERVER_MAX_NR_CLIENT * sizeof(struct client));
 
     addr.sin_family = AF_INET;
     addr.sin_port = htons(SERVER_PORT);
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    ret = bind(server->fd,(struct sockaddr *) &addr,sizeof(addr));
+    error = bind(server->fd, (struct sockaddr *) &addr, sizeof(addr));
     
-    if (ret == -1) {
-        perror("Bind error:");
-        close(server->fd);
-        exit(EXIT_FAILURE);
+    if (error == -1) {
+        goto fail;
     }
 
-    ret=listen(server->fd, SERVER_BACKLOG_SIZE);
+    error = listen(server->fd, SERVER_BACKLOG_SIZE);
     
-    if (ret == -1) {
-        perror("Listen error:");
-        close(server->fd);
-        exit(EXIT_FAILURE);
+    if (error == -1) {
+        goto fail;
     }
 
-    server_add_pollfd_element(server, 0, fd);
+    return 0;
+
+fail :
+    perror("error:");
+    close(server->fd);
+    return -1;
 }
 
 static int
-server_convert_client_index_to_pollfd_index(struct server *server, struct client client)
-{
-    size_t pollfd_index;
-
-    assert(client.index + 1 < ARRAY_SIZE(server->pollfds));
-    pollfd_index = client.index + 1;
-
-    return pollfd_index;
-}
-
-static void
 server_accept_client(struct server *server)
 {
     int fd;
@@ -157,78 +110,96 @@ server_accept_client(struct server *server)
     client_addr_size = sizeof(client_addr);
     fd = accept(server->fd, (struct sockaddr *) &client_addr, &client_addr_size);
     
-    if (fd == -1) {
-        goto fail;
-    }
-
     client = server_alloc_client(server, fd);
 
     if (client) {
-        size_t pollfd_index;
-        pollfd_index = server_convert_client_index_to_pollfd_index(server, *client);
-        server_add_pollfd_element(server, pollfd_index, fd);
+        return 0;
+    } else {
+        return -1;
     }
-    else {
-        goto fail;
-    }
-
-    return;
-
-fail:
-    perror("cannot accept new client :");
 }
 
-void 
-server_poll(struct server *server){
+static void
+server_build_fdarray(struct server *server, struct pollfd *fdarray, nfds_t *fdarray_size)
+{
+    fdarray[*(fdarray_size)].fd =  server->fd;
+    fdarray[*(fdarray_size)].events =  POLLIN;
+    *(fdarray_size) = 1;
 
-    int nb_events;
-    int client_index;
-    int pollin_ret;
-    struct client *client;
+    for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
+        struct client *client;
+        client = &server->clients[i];
 
-    while(1){
+        if (client_is_busy(client)) {
+            fdarray[*(fdarray_size)].fd =  client->fd;
+            fdarray[*(fdarray_size)].events =  POLLIN;
+            *(fdarray_size) = *(fdarray_size) + 1;
+        }
+    }
+}
+
+static int
+server_handle_revents(struct server *server, short revent)
+{
+    if (revent == POLLIN) {
+        return server_accept_client(server);
+    } else {
+        return 0;
+    }
+}
+
+static int
+server_handle_client_revents(struct server *server, const struct pollfd pollfd)
+{
+    int error = 0;
+    struct client *client = NULL;
     
-        nb_events = poll(server->pollfds, ARRAY_SIZE(server->pollfds), 1);
+    client = server_retrieve_client(server, pollfd.fd);
+
+    if (client == NULL) {
+        error = -1;
+    }
+
+    if (pollfd.revents == POLLIN) {
+        error = client_receive(client);
+    }
+
+    return error; 
+}
+
+int
+server_poll(struct server *server)
+{
+    int nb_events;
+    int error = 0;
+ 
+    while(1) {
+
+        struct pollfd fdarray[ARRAY_SIZE(server->clients)+1];
+        nfds_t fdarray_size;
+        
+        server_build_fdarray(server, fdarray, &fdarray_size);
+
+        nb_events = poll(fdarray, fdarray_size, -1);
         
         if (nb_events == -1){
-            goto fail;
+            error = 1;
         }
 
-        for (size_t i = 0; i < ARRAY_SIZE(server->pollfds); i++) {
-
-            if (server->pollfds[i].revents == 0) {
+        for (size_t i = 0; i < fdarray_size; i++) {
+            if (fdarray[i].revents == 0) {
                 continue;
             }
 
-            if (server->pollfds[i].fd == server->fd) {
-
-                if (server->pollfds[i].revents == POLLIN) {
-                    server_accept_client(server);
-                }
+            if (fdarray[i].fd == server->fd) {
+                error = server_handle_revents(server, fdarray[i].revents);
+            } else {
+                error = server_handle_client_revents(server, fdarray[i]);
             }
-            else{
 
-                if (server->pollfds[i].revents == POLLIN) {
-                    client_index = server_convert_pollfd_index_to_client_index(i);
-                    client = server_get_client(server, client_index);
-                    pollin_ret = client_pollin_behaviour(client);
-                    
-                    if (pollin_ret) {
-                        server_close_client_connection(server, i);
-                        goto fail;
-                    }
-                }
-                else {
-                    server_close_client_connection(server, i);
-                    goto fail;
-                }
-            }        
+            if (error != 0) {
+                server_close_client(server, fdarray[i]);
+            }       
         }
     }
-    return;
-
-    fail :
-        perror("Poll error:");
-        close(server->fd);
-        exit(EXIT_FAILURE);
 }

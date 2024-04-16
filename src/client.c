@@ -1,37 +1,64 @@
+#include <assert.h>
+#include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <unistd.h>
 
 #include "client.h"
 
 void 
-client_init(struct client *client, int fd, size_t index)
+client_init(struct client *client, int fd)
 {
     client->fd = fd;
-    client->index = index;
-    client->send_buf = "ServerNotImplemented";
+}
+
+static void
+client_make_available(struct client *client)
+{
+    assert(client);
+
+    client->fd = -1;
+}
+
+bool
+client_is_busy(struct client *client)
+{
+    assert(client);
+
+    return (client->fd != -1);
+}
+
+bool
+client_is_available(struct client *client)
+{
+    assert(client);
+
+    return (client->fd == -1);
+}
+
+int 
+client_receive(struct client *client)
+{
+    int nb_bytes_recv;
+    char recv_buf[10];
+    const char *send_buf = "serverNotImplemented";
+    
+    nb_bytes_recv = recv(client->fd, recv_buf, sizeof(recv_buf), 0);
+
+    if(nb_bytes_recv == 0){
+        return -1;
+    }
+    
+    send(client->fd, send_buf, strlen(send_buf), 0);
+    
+    return 0;
 }
 
 void
-client_set_fd(struct client *client, int fd)
+client_close(struct client *client)
 {
-    client->fd = fd;
-}
+    assert(client);
 
-int
-client_pollin_behaviour(struct client *client)
-{
-    int nb_bytes_recv;
-    
-    nb_bytes_recv = recv(client->fd, client->recv_buf, sizeof(client->recv_buf), 0);
-             
-    if (nb_bytes_recv == -1) {
-        return -1;
-    }
-    else if (nb_bytes_recv == 0) {
-        return -1;
-    }
-    else{
-        send(client->fd, client->send_buf, strlen(client->send_buf), 0);
-    }
-
-    return 0;
+    client_make_available(client);
+    close(client->fd);
 }

@@ -7,19 +7,33 @@
 
 #include "client.h"
 
-#define SERVER_MAX_NB_FD           10
-#define SERVER_PORT                1026
-#define SERVER_BACKLOG_SIZE 2
-
+#define SERVER_MAX_NR_CLIENT       10
 
 struct server {
-    struct client clients[50];
+    struct client clients[SERVER_MAX_NR_CLIENT];
     int fd;
-    struct pollfd pollfds[SERVER_MAX_NB_FD];
-    
 };
 
-void server_tcp_ip_init(struct server *server);
-void server_poll(struct server *server);
+/*
+ * Initialize a server.
+ *
+ * The server is initialized as a tcp ip server
+ * 
+ * If successful, return 0. If error occured during initialization -1 is returned. 
+ */
+int server_init(struct server *server);
+
+/*
+ * Polling a server.
+ *
+ * Monitor events on a set of file descriptors and interact according those 
+ * events.
+ * The function uses "poll" system call.
+ * Only POLLIN events are handled.
+ * 
+ * If successful, return 0. If error occured during event handling or connection 
+ * is closed -1 is returned. 
+ */
+int server_poll(struct server *server);
 
 #endif /* SERVER_H */

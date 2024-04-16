@@ -5,15 +5,15 @@
 #include "client.h"
 #include "server.h"
 
-/*
-* tcp server implementation
-*/
-
 int
 main(void)
 {   
     struct server tcp_ip_server;
+    int error;
 
-    server_tcp_ip_init(&tcp_ip_server);
-    server_poll(&tcp_ip_server);
+    error = server_init(&tcp_ip_server);
+
+    if (error != -1) {
+        error = server_poll(&tcp_ip_server);
+    }   
 }
