@@ -14,28 +14,40 @@ struct client {
 
 /*
  * Initialize a client.
+ *
+ * The client is initially closed.
  */
-void client_init(struct client *client, int fd);
+void client_init(struct client *client);
+
+/*!
+ * Open a client.
+ *
+ * The given file descriptor must denote a valid connected socket.
+ */
+void client_open(struct client *client, int fd);
 
 /*
- * Return true if the fd of the given client is tracked by the server (fd != -1)
- */
-bool client_is_busy(struct client *client);
-
-/*
- * Return true if the fd of the given client is not tracked by the server 
- * (fd == -1)
- */
-bool client_is_available(struct client *client);
-
-/*
- * Close the client connection
+ * Close a client.
+ *
+ * The associated file descriptor is closed.
  */
 void client_close(struct client *client);
 
 /*
- * Receive the message sent by the client and answer back "ServerNotImplemented"
+ * Check if a client is closed.
  */
-int client_receive(struct client *client);
+bool client_is_closed(struct client *client);
+
+/*!
+ * Get the file descriptor of a client.
+ */
+int client_get_fd(const struct client *client);
+
+/*
+ * Process data received by a client.
+ *
+ * The client must be open before calling this function.
+ */
+int client_process(struct client *client);
 
 #endif /* CLIENT_H */

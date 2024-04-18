@@ -14,6 +14,6 @@ main(void)
     error = server_init(&tcp_ip_server);
 
     if (error != -1) {
-        error = server_poll(&tcp_ip_server);
+        server_poll(&tcp_ip_server);
     }   
 }
