@@ -16,30 +16,31 @@
 #define SERVER_BACKLOG_SIZE        2
 
 static struct client *
-server_retrieve_client(struct server *server, int fd)
+server_find_client(struct server *server, int fd)
 {
     for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
-        
-        if (server->clients[i].fd == fd){
-            return &server->clients[i];
+        struct client *client = &server->clients[i];
+
+        if (!client_is_closed(client)) {
+            continue;
+        }
+
+        if (client_get_fd(client) == fd) {
+            return client;
         }
     }
+
     return NULL;
 }
 
 static struct client *
 server_alloc_client(struct server *server, int fd)
 {
-    if (fd < 0) {
-        return NULL;
-    }
-
     for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
-        struct client *client;
-        client = &server->clients[i];
+        struct client *client = &server->clients[i];
 
-        if (client_is_available(client)) {
-            client_init(client, fd);
+        if (client_is_closed(client)) {
+            client_open(client, fd);
             return client;
         }
     }
@@ -48,15 +49,9 @@ server_alloc_client(struct server *server, int fd)
 }
 
 static void
-server_close_client(struct server *server, const struct pollfd pollfd)
+server_close_client(struct server *server, int fd)
 {
-    struct client *client;
-
-    client = server_retrieve_client(server, pollfd.fd);
-
-    if (client != NULL) {
-        client_close(client);
-    }
+    client_close(server_find_client(server, fd));
 }
 
 int
@@ -74,12 +69,15 @@ server_init(struct server *server)
     }
 
     server->fd = fd;
-    memset(server->clients, -1, SERVER_MAX_NR_CLIENT * sizeof(struct client));
+
+    for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
+        client_init(&server->clients[i]);
+    }
 
     addr.sin_family = AF_INET;
     addr.sin_port = htons(SERVER_PORT);
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    error = bind(server->fd, (struct sockaddr *) &addr, sizeof(addr));
+    error = bind(server->fd, (struct sockaddr *)&addr, sizeof(addr));
     
     if (error == -1) {
         goto fail;
@@ -109,7 +107,9 @@ server_accept_client(struct server *server)
     
     client_addr_size = sizeof(client_addr);
     fd = accept(server->fd, (struct sockaddr *) &client_addr, &client_addr_size);
-    
+
+    // TODO Handle error.
+
     client = server_alloc_client(server, fd);
 
     if (client) {
@@ -122,84 +122,83 @@ server_accept_client(struct server *server)
 static void
 server_build_fdarray(struct server *server, struct pollfd *fdarray, nfds_t *fdarray_size)
 {
-    fdarray[*(fdarray_size)].fd =  server->fd;
-    fdarray[*(fdarray_size)].events =  POLLIN;
-    *(fdarray_size) = 1;
+    nfds_t size;
+
+    assert(server);
+    assert(fdarray);
+    assert(fdarray_size);
+
+    fdarray[0].fd = server->fd;
+    fdarray[0].events = POLLIN;
+
+    size = 1;
 
     for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
-        struct client *client;
-        client = &server->clients[i];
+        struct client *client = &server->clients[i];
 
-        if (client_is_busy(client)) {
-            fdarray[*(fdarray_size)].fd =  client->fd;
-            fdarray[*(fdarray_size)].events =  POLLIN;
-            *(fdarray_size) = *(fdarray_size) + 1;
+        if (!client_is_closed(client)) {
+            fdarray[size].fd =  client->fd;
+            fdarray[size].events = POLLIN;
+            size++;
         }
     }
 }
 
 static int
-server_handle_revents(struct server *server, short revent)
+server_handle_revents(struct server *server)
 {
-    if (revent == POLLIN) {
-        return server_accept_client(server);
-    } else {
-        return 0;
-    }
+    return server_accept_client(server);
 }
 
 static int
-server_handle_client_revents(struct server *server, const struct pollfd pollfd)
+server_handle_client_revents(struct server *server, int fd)
 {
-    int error = 0;
-    struct client *client = NULL;
-    
-    client = server_retrieve_client(server, pollfd.fd);
-
-    if (client == NULL) {
-        error = -1;
-    }
-
-    if (pollfd.revents == POLLIN) {
-        error = client_receive(client);
-    }
-
-    return error; 
+    return client_process(server_find_client(server, fd));
 }
 
-int
-server_poll(struct server *server)
+static int
+server_process(struct server *server)
 {
+    struct pollfd fdarray[ARRAY_SIZE(server->clients) + 1];
+    nfds_t fdarray_size;
     int nb_events;
     int error = 0;
- 
-    while(1) {
 
-        struct pollfd fdarray[ARRAY_SIZE(server->clients)+1];
-        nfds_t fdarray_size;
-        
-        server_build_fdarray(server, fdarray, &fdarray_size);
+    server_build_fdarray(server, fdarray, &fdarray_size);
 
-        nb_events = poll(fdarray, fdarray_size, -1);
-        
-        if (nb_events == -1){
-            error = 1;
+    nb_events = poll(fdarray, fdarray_size, -1);
+    
+    if (nb_events == -1) {
+        return -1;
+    }
+
+    for (nfds_t i = 0; i < fdarray_size; i++) {
+        const struct pollfd *pollfd = &fdarray[i];
+
+        if (pollfd->revents == 0) {
+            continue;
         }
 
-        for (size_t i = 0; i < fdarray_size; i++) {
-            if (fdarray[i].revents == 0) {
-                continue;
-            }
-
-            if (fdarray[i].fd == server->fd) {
-                error = server_handle_revents(server, fdarray[i].revents);
-            } else {
-                error = server_handle_client_revents(server, fdarray[i]);
-            }
+        if (pollfd->fd == server->fd) {
+            error = server_handle_revents(server);
+        } else {
+            error = server_handle_client_revents(server, pollfd->fd);
 
             if (error != 0) {
-                server_close_client(server, fdarray[i]);
-            }       
+                server_close_client(server, pollfd->fd);
+            }
         }
     }
+
+    return 0;
+}
+
+void
+server_poll(struct server *server)
+{
+    int error;
+
+    do {
+        error = server_process(server);
+    } while (!error);
 }

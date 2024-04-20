@@ -26,14 +26,8 @@ int server_init(struct server *server);
 /*
  * Polling a server.
  *
- * Monitor events on a set of file descriptors and interact according those 
- * events.
- * The function uses "poll" system call.
- * Only POLLIN events are handled.
- * 
- * If successful, return 0. If error occured during event handling or connection 
- * is closed -1 is returned. 
+ * TODO Define exit conditions.
  */
-int server_poll(struct server *server);
+void server_poll(struct server *server);
 
 #endif /* SERVER_H */
