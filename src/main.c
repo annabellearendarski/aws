@@ -7,7 +7,7 @@
 
 int
 main(void)
-{   
+{
     struct server tcp_ip_server;
     int error;
 
@@ -15,5 +15,5 @@ main(void)
 
     if (error != -1) {
         server_poll(&tcp_ip_server);
-    }   
+    }
 }

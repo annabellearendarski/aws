@@ -18,8 +18,8 @@ struct server {
  * Initialize a server.
  *
  * The server is initialized as a tcp ip server
- * 
- * If successful, return 0. If error occured during initialization -1 is returned. 
+ *
+ * If successful, return 0. If error occured during initialization -1 is returned.
  */
 int server_init(struct server *server);
 

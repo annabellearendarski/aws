@@ -6,7 +6,7 @@
 
 #include "client.h"
 
-void 
+void
 client_init(struct client *client)
 {
     assert(client);
@@ -48,7 +48,7 @@ client_get_fd(const struct client *client)
     return client->fd;
 }
 
-int 
+int
 client_process(struct client *client)
 {
     ssize_t nr_bytes;
@@ -60,8 +60,8 @@ client_process(struct client *client)
     if (nr_bytes <= 0){
         return -1;
     }
-    
+
     send(client->fd, send_buf, strlen(send_buf), 0);
-    
+
     return 0;
 }

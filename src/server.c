@@ -21,7 +21,7 @@ server_find_client(struct server *server, int fd)
     for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
         struct client *client = &server->clients[i];
 
-        if (!client_is_closed(client)) {
+        if (client_is_closed(client)) {
             continue;
         }
 
@@ -62,10 +62,10 @@ server_init(struct server *server)
     struct sockaddr_in addr;
 
     fd = socket(AF_INET, SOCK_STREAM, 0);
-   
+
     if (fd == -1) {
         perror("socket creation error:");
-        return -1;  
+        return -1;
     }
 
     server->fd = fd;
@@ -78,13 +78,13 @@ server_init(struct server *server)
     addr.sin_port = htons(SERVER_PORT);
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     error = bind(server->fd, (struct sockaddr *)&addr, sizeof(addr));
-    
+
     if (error == -1) {
         goto fail;
     }
 
     error = listen(server->fd, SERVER_BACKLOG_SIZE);
-    
+
     if (error == -1) {
         goto fail;
     }
@@ -104,7 +104,7 @@ server_accept_client(struct server *server)
     struct client *client;
     struct sockaddr_in client_addr;
     socklen_t  client_addr_size;
-    
+
     client_addr_size = sizeof(client_addr);
     fd = accept(server->fd, (struct sockaddr *) &client_addr, &client_addr_size);
 
@@ -142,6 +142,8 @@ server_build_fdarray(struct server *server, struct pollfd *fdarray, nfds_t *fdar
             size++;
         }
     }
+
+    *fdarray_size = size;
 }
 
 static int
@@ -153,7 +155,8 @@ server_handle_revents(struct server *server)
 static int
 server_handle_client_revents(struct server *server, int fd)
 {
-    return client_process(server_find_client(server, fd));
+    struct client *client = server_find_client(server, fd);
+    return client_process(client);
 }
 
 static int
@@ -167,7 +170,7 @@ server_process(struct server *server)
     server_build_fdarray(server, fdarray, &fdarray_size);
 
     nb_events = poll(fdarray, fdarray_size, -1);
-    
+
     if (nb_events == -1) {
         return -1;
     }
