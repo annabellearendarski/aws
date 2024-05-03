@@ -15,7 +15,6 @@
 #include "macro.h"
 #include "server.h"
 
-
 #define SERVER_PORT                1026
 #define SERVER_BACKLOG_SIZE        2
 
@@ -24,7 +23,7 @@ server_find_client(struct server *server, int fd)
 {
     struct client *client;
 
-    list_for_each_entry_reverse(&server->clients, client, node){
+    list_for_each_entry_reverse(&server->clients, client, node) {
         if (client_get_fd(client) == fd) {
             return client;
         }
@@ -51,18 +50,20 @@ server_alloc_client(struct server *server, int fd)
 }
 
 static void
-server_close(struct server *server)
-{
-    close(server->fd);
-}
-
-static void
 server_close_client(struct server *server, int fd)
 {
     struct client *client;
+
     client = server_find_client(server, fd);
     list_remove(&client->node);
     close(client->fd);
+    free(client);
+}
+
+static void
+server_close(struct server *server)
+{
+    close(server->fd);
 }
 
 int
@@ -107,16 +108,41 @@ fail :
     return -1;
 }
 
+void server_cleanup(struct server *server)
+{
+    assert(server);
+
+#if 1
+    while (!list_empty(&server->clients)) {
+        struct client *client = list_first_entry(&server->clients, struct client, node);
+printf("fd:%d\n", client->fd);
+
+        list_remove(&client->node);
+        client_close(client);
+        free(client);
+    }
+#else
+    struct client *client;
+
+    list_for_each_entry_reverse(&server->clients, client, node) {
+        client_close(client);
+        free(client);
+    }
+#endif
+
+    // TODO Close the server socket if it's still open.
+}
+
 static int
 server_accept_client(struct server *server)
 {
     int fd;
     struct client *client;
     struct sockaddr_in client_addr;
-    socklen_t  client_addr_size;
+    socklen_t client_addr_size;
 
     client_addr_size = sizeof(client_addr);
-    fd = accept(server->fd, (struct sockaddr *) &client_addr, &client_addr_size);
+    fd = accept(server->fd, (struct sockaddr *)&client_addr, &client_addr_size);
 
     if (fd == -1) {
         return -1;
@@ -132,7 +158,8 @@ server_accept_client(struct server *server)
 }
 
 static int
-server_compute_nr_clients(struct list *clients) {
+server_compute_nr_clients(struct list *clients)
+{
     struct client *client;
     int size = 0;
 
@@ -145,7 +172,6 @@ server_compute_nr_clients(struct list *clients) {
     return size;
 }
 
-
 static struct pollfd *
 server_build_fdarray(struct server *server, nfds_t *fdarray_size)
 {
@@ -153,24 +179,27 @@ server_build_fdarray(struct server *server, nfds_t *fdarray_size)
     struct pollfd *fdarray;
     struct client *client;
     int nr_clients;
+
     assert(server);
     assert(fdarray_size);
 
     nr_clients = server_compute_nr_clients(&server->clients);
-    i = 1;
 
-    fdarray = (struct pollfd *)malloc(nr_clients * sizeof(struct pollfd));
+    fdarray = malloc((nr_clients + 1) * sizeof(fdarray[0]));
+    // TODO Check error.
+
     fdarray[0].fd = server->fd;
     fdarray[0].events = POLLIN;
 
+    i = 1;
 
     list_for_each_entry_reverse(&server->clients, client, node) {
-        fdarray[i].fd =  client->fd;
+        fdarray[i].fd = client->fd; // TODO Fix encapsulation violation.
         fdarray[i].events = POLLIN;
         i++;
     }
 
-     *fdarray_size = i;
+    *fdarray_size = i;
     return fdarray;
 }
 
@@ -184,9 +213,11 @@ static int
 server_handle_client_revents(struct server *server, int fd)
 {
     struct client *client = server_find_client(server, fd);
+
     return client_process(client);
 }
 
+// TODO Rename this function to server_poll.
 static int
 server_process(struct server *server)
 {

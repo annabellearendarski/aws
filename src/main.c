@@ -1,14 +1,21 @@
+#include <stdio.h>
+
 #include "server.h"
 
 int
 main(void)
 {
-    struct server tcp_ip_server;
+    struct server server;
     int error;
 
-    error = server_init(&tcp_ip_server);
+    error = server_init(&server);
 
+    // TODO Turn that into a loop and check errors.
     if (error != -1) {
-        server_poll(&tcp_ip_server);
+        server_poll(&server);
     }
+
+    printf("end\n");
+
+    server_cleanup(&server);
 }

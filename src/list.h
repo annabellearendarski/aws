@@ -34,6 +34,11 @@ list_insert_tail(struct list *tail, struct list *node)
     list_add(tail->prev, tail, node);
 }
 
+static inline struct list *
+list_first(const struct list *list)
+{
+    return list->next;
+}
 
 static inline struct list *
 list_last(struct list *list)
@@ -47,13 +52,17 @@ list_prev(struct list *node)
     return node->prev;
 }
 
-
 static inline bool
 list_end(const struct list *list, const struct list *node)
 {
     return list == node;
 }
 
+static inline bool
+list_empty(const struct list *list)
+{
+    return list == list->next;
+}
 
 static inline void
 list_remove(struct list *node)
@@ -63,6 +72,12 @@ list_remove(struct list *node)
 }
 
 #define list_entry(node, type, member) structof(node, type, member)
+
+/*
+ * Get the first entry of a list.
+ */
+#define list_first_entry(list, type, member) \
+    list_entry(list_first(list), type, member)
 
 /*
  * Get the last entry of a list.
