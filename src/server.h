@@ -1,16 +1,14 @@
 #ifndef SERVER_H
 #define SERVER_H
 
-#include <sys/socket.h>
-#include <stdbool.h>
-#include <netinet/in.h>
-
 #include "client.h"
+#include "list.h"
+
 
 #define SERVER_MAX_NR_CLIENT       10
 
 struct server {
-    struct client clients[SERVER_MAX_NR_CLIENT];
+    struct list clients;
     int fd;
 };
 
@@ -26,7 +24,7 @@ int server_init(struct server *server);
 /*
  * Polling a server.
  *
- * TODO Define exit conditions.
+ * Exits when the server fails to accept a client
  */
 void server_poll(struct server *server);
 

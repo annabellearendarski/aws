@@ -1,8 +1,3 @@
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-#include "client.h"
 #include "server.h"
 
 int

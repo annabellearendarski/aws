@@ -1,15 +1,13 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
-#include <netinet/in.h>
 #include <stdbool.h>
-#include <string.h>
-#include <sys/socket.h>
 
-#include <poll.h>
+#include "list.h"
 
 struct client {
     int fd;
+    struct list node;
 };
 
 /*

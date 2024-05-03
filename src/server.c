@@ -4,13 +4,17 @@
 #include <poll.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <sys/fcntl.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include "client.h"
+#include "list.h"
 #include "macro.h"
 #include "server.h"
+
 
 #define SERVER_PORT                1026
 #define SERVER_BACKLOG_SIZE        2
@@ -18,13 +22,9 @@
 static struct client *
 server_find_client(struct server *server, int fd)
 {
-    for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
-        struct client *client = &server->clients[i];
+    struct client *client;
 
-        if (client_is_closed(client)) {
-            continue;
-        }
-
+    list_for_each_entry_reverse(&server->clients, client, node){
         if (client_get_fd(client) == fd) {
             return client;
         }
@@ -36,22 +36,33 @@ server_find_client(struct server *server, int fd)
 static struct client *
 server_alloc_client(struct server *server, int fd)
 {
-    for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
-        struct client *client = &server->clients[i];
+    struct client *client;
 
-        if (client_is_closed(client)) {
-            client_open(client, fd);
-            return client;
-        }
+    client = malloc(sizeof(*client));
+
+    if (!client) {
+        return NULL;
     }
 
-    return NULL;
+    client_open(client, fd);
+    list_insert_tail(&server->clients, &client->node);
+
+    return client;
+}
+
+static void
+server_close(struct server *server)
+{
+    close(server->fd);
 }
 
 static void
 server_close_client(struct server *server, int fd)
 {
-    client_close(server_find_client(server, fd));
+    struct client *client;
+    client = server_find_client(server, fd);
+    list_remove(&client->node);
+    close(client->fd);
 }
 
 int
@@ -62,6 +73,7 @@ server_init(struct server *server)
     struct sockaddr_in addr;
 
     fd = socket(AF_INET, SOCK_STREAM, 0);
+    fcntl(fd, F_SETFL, O_NONBLOCK);
 
     if (fd == -1) {
         perror("socket creation error:");
@@ -70,9 +82,7 @@ server_init(struct server *server)
 
     server->fd = fd;
 
-    for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
-        client_init(&server->clients[i]);
-    }
+    list_init(&server->clients);
 
     addr.sin_family = AF_INET;
     addr.sin_port = htons(SERVER_PORT);
@@ -108,7 +118,9 @@ server_accept_client(struct server *server)
     client_addr_size = sizeof(client_addr);
     fd = accept(server->fd, (struct sockaddr *) &client_addr, &client_addr_size);
 
-    // TODO Handle error.
+    if (fd == -1) {
+        return -1;
+    }
 
     client = server_alloc_client(server, fd);
 
@@ -119,31 +131,47 @@ server_accept_client(struct server *server)
     }
 }
 
-static void
-server_build_fdarray(struct server *server, struct pollfd *fdarray, nfds_t *fdarray_size)
-{
-    nfds_t size;
+static int
+server_compute_nr_clients(struct list *clients) {
+    struct client *client;
+    int size = 0;
 
+    assert(clients);
+
+    list_for_each_entry_reverse(clients, client, node) {
+        size++;
+    }
+
+    return size;
+}
+
+
+static struct pollfd *
+server_build_fdarray(struct server *server, nfds_t *fdarray_size)
+{
+    nfds_t i;
+    struct pollfd *fdarray;
+    struct client *client;
+    int nr_clients;
     assert(server);
-    assert(fdarray);
     assert(fdarray_size);
 
+    nr_clients = server_compute_nr_clients(&server->clients);
+    i = 1;
+
+    fdarray = (struct pollfd *)malloc(nr_clients * sizeof(struct pollfd));
     fdarray[0].fd = server->fd;
     fdarray[0].events = POLLIN;
 
-    size = 1;
 
-    for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
-        struct client *client = &server->clients[i];
-
-        if (!client_is_closed(client)) {
-            fdarray[size].fd =  client->fd;
-            fdarray[size].events = POLLIN;
-            size++;
-        }
+    list_for_each_entry_reverse(&server->clients, client, node) {
+        fdarray[i].fd =  client->fd;
+        fdarray[i].events = POLLIN;
+        i++;
     }
 
-    *fdarray_size = size;
+     *fdarray_size = i;
+    return fdarray;
 }
 
 static int
@@ -162,12 +190,12 @@ server_handle_client_revents(struct server *server, int fd)
 static int
 server_process(struct server *server)
 {
-    struct pollfd fdarray[ARRAY_SIZE(server->clients) + 1];
+    struct pollfd *fdarray;
     nfds_t fdarray_size;
     int nb_events;
     int error = 0;
 
-    server_build_fdarray(server, fdarray, &fdarray_size);
+    fdarray = server_build_fdarray(server, &fdarray_size);
 
     nb_events = poll(fdarray, fdarray_size, -1);
 
@@ -184,6 +212,10 @@ server_process(struct server *server)
 
         if (pollfd->fd == server->fd) {
             error = server_handle_revents(server);
+            if (error != 0) {
+                server_close(server);
+                return -1;
+            }
         } else {
             error = server_handle_client_revents(server, pollfd->fd);
 

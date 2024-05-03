@@ -1,7 +1,8 @@
 #include <assert.h>
+#include <errno.h>
 #include <stdbool.h>
-#include <stddef.h>
-#include <stdio.h>
+#include <string.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #include "client.h"
@@ -58,7 +59,9 @@ client_process(struct client *client)
     nr_bytes = recv(client->fd, recv_buf, sizeof(recv_buf), MSG_DONTWAIT);
 
     if (nr_bytes <= 0){
-        return -1;
+        if (errno != EWOULDBLOCK) {
+            return -1;
+        }
     }
 
     send(client->fd, send_buf, strlen(send_buf), 0);
