@@ -57,12 +57,16 @@ server_close_client(struct server *server, int fd)
     client = server_find_client(server, fd);
     list_remove(&client->node);
     close(client->fd);
+    server->nr_clients = server->nr_clients - 1;
     free(client);
 }
 
 static void
 server_close(struct server *server)
 {
+    assert(server);
+
+    server_cleanup(server);
     close(server->fd);
 }
 
@@ -82,6 +86,7 @@ server_init(struct server *server)
     }
 
     server->fd = fd;
+    server->nr_clients = 0;
 
     list_init(&server->clients);
 
@@ -112,25 +117,13 @@ void server_cleanup(struct server *server)
 {
     assert(server);
 
-#if 1
     while (!list_empty(&server->clients)) {
         struct client *client = list_first_entry(&server->clients, struct client, node);
-printf("fd:%d\n", client->fd);
 
         list_remove(&client->node);
         client_close(client);
         free(client);
     }
-#else
-    struct client *client;
-
-    list_for_each_entry_reverse(&server->clients, client, node) {
-        client_close(client);
-        free(client);
-    }
-#endif
-
-    // TODO Close the server socket if it's still open.
 }
 
 static int
@@ -151,25 +144,12 @@ server_accept_client(struct server *server)
     client = server_alloc_client(server, fd);
 
     if (client) {
+        server->nr_clients = server->nr_clients + 1;
+        printf("Accept client fd %d\n",fd);
         return 0;
     } else {
         return -1;
     }
-}
-
-static int
-server_compute_nr_clients(struct list *clients)
-{
-    struct client *client;
-    int size = 0;
-
-    assert(clients);
-
-    list_for_each_entry_reverse(clients, client, node) {
-        size++;
-    }
-
-    return size;
 }
 
 static struct pollfd *
@@ -183,10 +163,13 @@ server_build_fdarray(struct server *server, nfds_t *fdarray_size)
     assert(server);
     assert(fdarray_size);
 
-    nr_clients = server_compute_nr_clients(&server->clients);
+    nr_clients = server->nr_clients;
 
     fdarray = malloc((nr_clients + 1) * sizeof(fdarray[0]));
-    // TODO Check error.
+
+    if (!fdarray) {
+        return NULL;
+    }
 
     fdarray[0].fd = server->fd;
     fdarray[0].events = POLLIN;
@@ -194,7 +177,7 @@ server_build_fdarray(struct server *server, nfds_t *fdarray_size)
     i = 1;
 
     list_for_each_entry_reverse(&server->clients, client, node) {
-        fdarray[i].fd = client->fd; // TODO Fix encapsulation violation.
+        fdarray[i].fd = client_get_fd(client);
         fdarray[i].events = POLLIN;
         i++;
     }
@@ -217,9 +200,8 @@ server_handle_client_revents(struct server *server, int fd)
     return client_process(client);
 }
 
-// TODO Rename this function to server_poll.
-static int
-server_process(struct server *server)
+int
+server_poll(struct server *server)
 {
     struct pollfd *fdarray;
     nfds_t fdarray_size;
@@ -227,6 +209,10 @@ server_process(struct server *server)
     int error = 0;
 
     fdarray = server_build_fdarray(server, &fdarray_size);
+
+    if (!fdarray) {
+        return -1;
+    }
 
     nb_events = poll(fdarray, fdarray_size, -1);
 
@@ -245,26 +231,14 @@ server_process(struct server *server)
             error = server_handle_revents(server);
             if (error != 0) {
                 server_close(server);
+                free(fdarray);
                 return -1;
             }
         } else {
-            error = server_handle_client_revents(server, pollfd->fd);
-
-            if (error != 0) {
-                server_close_client(server, pollfd->fd);
-            }
+            server_handle_client_revents(server, pollfd->fd);
+            server_close_client(server, pollfd->fd);
         }
     }
 
     return 0;
-}
-
-void
-server_poll(struct server *server)
-{
-    int error;
-
-    do {
-        error = server_process(server);
-    } while (!error);
 }

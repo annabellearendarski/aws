@@ -1,5 +1,5 @@
 #include <stdio.h>
-
+#include <string.h>
 #include "server.h"
 
 int
@@ -10,12 +10,8 @@ main(void)
 
     error = server_init(&server);
 
-    // TODO Turn that into a loop and check errors.
-    if (error != -1) {
-        server_poll(&server);
-    }
+    do {
+        error = server_poll(&server);
+    } while (!error);
 
-    printf("end\n");
-
-    server_cleanup(&server);
 }

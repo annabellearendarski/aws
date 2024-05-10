@@ -8,9 +8,15 @@
 
 #define SERVER_MAX_NR_CLIENT       10
 
+/*
+* Server descriptor
+*
+* Contains a list of clients
+*/
 struct server {
     struct list clients;
     int fd;
+    int nr_clients;
 };
 
 /*
@@ -32,8 +38,7 @@ void server_cleanup(struct server *server);
  *
  * Exits when the server fails to accept a client
  *
- * TODO Don't loop here, and an return error code.
  */
-void server_poll(struct server *server);
+int server_poll(struct server *server);
 
 #endif /* SERVER_H */

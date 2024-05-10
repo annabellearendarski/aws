@@ -5,6 +5,11 @@
 
 #include "list.h"
 
+/*
+* client descriptor
+*
+* Contains a node which can be chained in a linked list
+*/
 struct client {
     int fd;
     struct list node;
@@ -17,7 +22,7 @@ struct client {
  */
 void client_init(struct client *client);
 
-/*!
+/*
  * Open a client.
  *
  * The given file descriptor must denote a valid connected socket.
@@ -36,7 +41,7 @@ void client_close(struct client *client);
  */
 bool client_is_closed(struct client *client);
 
-/*!
+/*
  * Get the file descriptor of a client.
  */
 int client_get_fd(const struct client *client);
