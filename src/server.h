@@ -6,13 +6,11 @@
 #include "client.h"
 #include "list.h"
 
-#define SERVER_MAX_NR_CLIENT       10
+#define SERVER_MAX_NR_CLIENTS       10
 
 /*
-* Server descriptor
-*
-* Contains a list of clients
-*/
+ * Server descriptor.
+ */
 struct server {
     struct list clients;
     int fd;
@@ -22,7 +20,7 @@ struct server {
 /*
  * Initialize a server.
  *
- * The server is initialized as a tcp ip server
+ * The server is initialized as a tcp ip server.
  *
  * If successful, return 0. If error occured during initialization -1 is returned.
  */
@@ -36,8 +34,7 @@ void server_cleanup(struct server *server);
 /*
  * Polling a server.
  *
- * Exits when the server fails to accept a client
- *
+ * Exits when the server fails to accept a client.
  */
 int server_poll(struct server *server);
 
