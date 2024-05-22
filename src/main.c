@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "server.h"
 
@@ -10,8 +11,13 @@ main(void)
 
     error = server_init(&server);
 
+    if (error) {
+        return EXIT_FAILURE;
+    }
+
     do {
         error = server_poll(&server);
     } while (!error);
 
+    return EXIT_FAILURE;
 }

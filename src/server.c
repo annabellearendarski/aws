@@ -50,14 +50,12 @@ server_alloc_client(struct server *server, int fd)
 }
 
 static void
-server_close_client(struct server *server, int fd)
+server_free_client(struct server *server, struct client *client)
 {
-    struct client *client;
-
-    client = server_find_client(server, fd);
     list_remove(&client->node);
-    close(client->fd);
-    server->nr_clients = server->nr_clients - 1;
+    server->nr_clients--;
+
+    client_close(client);
     free(client);
 }
 
@@ -73,16 +71,46 @@ server_close(struct server *server)
 int
 server_init(struct server *server)
 {
-    int error = 0;
-    int fd;
     struct sockaddr_in addr;
+    int reuseaddr;
+    int result;
+    int error;
+    int fd;
 
     fd = socket(AF_INET, SOCK_STREAM, 0);
-    fcntl(fd, F_SETFL, O_NONBLOCK);
 
     if (fd == -1) {
-        perror("socket creation error:");
-        return -1;
+        error = errno;
+        perror("unable to create server socket");
+        goto error_socket;
+    }
+
+    reuseaddr = 1;
+    result = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(reuseaddr));
+
+    if (result == -1) {
+        error = errno;
+        perror("unable to set SO_REUSEADDR");
+        goto error;
+    }
+
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(SERVER_PORT);
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    result = bind(fd, (struct sockaddr *)&addr, sizeof(addr));
+
+    if (result == -1) {
+        error = errno;
+        perror("unable to bind server socket");
+        goto error;
+    }
+
+    result = listen(fd, SERVER_BACKLOG_SIZE);
+
+    if (result == -1) {
+        error = errno;
+        perror("unable to listen on server socket");
+        goto error;
     }
 
     server->fd = fd;
@@ -90,27 +118,12 @@ server_init(struct server *server)
 
     list_init(&server->clients);
 
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(SERVER_PORT);
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    error = bind(server->fd, (struct sockaddr *)&addr, sizeof(addr));
-
-    if (error == -1) {
-        goto fail;
-    }
-
-    error = listen(server->fd, SERVER_BACKLOG_SIZE);
-
-    if (error == -1) {
-        goto fail;
-    }
-
     return 0;
 
-fail :
-    perror("error:");
+error:
     close(server->fd);
-    return -1;
+error_socket:
+    return error;
 }
 
 void server_cleanup(struct server *server)
@@ -120,9 +133,7 @@ void server_cleanup(struct server *server)
     while (!list_empty(&server->clients)) {
         struct client *client = list_first_entry(&server->clients, struct client, node);
 
-        list_remove(&client->node);
-        client_close(client);
-        free(client);
+        server_free_client(server, client);
     }
 }
 
@@ -186,18 +197,17 @@ server_build_fdarray(struct server *server, nfds_t *fdarray_size)
     return fdarray;
 }
 
-static int
-server_handle_revents(struct server *server)
-{
-    return server_accept_client(server);
-}
-
-static int
-server_handle_client_revents(struct server *server, int fd)
+static void
+server_handle_client(struct server *server, int fd)
 {
     struct client *client = server_find_client(server, fd);
+    int error;
 
-    return client_process(client);
+    error = client_process(client);
+
+    if (error) {
+        server_free_client(server, client);
+    }
 }
 
 int
@@ -228,17 +238,18 @@ server_poll(struct server *server)
         }
 
         if (pollfd->fd == server->fd) {
-            error = server_handle_revents(server);
+            error = server_accept_client(server);
+
             if (error != 0) {
                 server_close(server);
-                free(fdarray);
-                return -1;
+                goto out;
             }
         } else {
-            server_handle_client_revents(server, pollfd->fd);
-            server_close_client(server, pollfd->fd);
+            server_handle_client(server, pollfd->fd);
         }
     }
 
-    return 0;
+out:
+    free(fdarray);
+    return error;
 }

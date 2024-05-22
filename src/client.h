@@ -6,10 +6,8 @@
 #include "list.h"
 
 /*
-* client descriptor
-*
-* Contains a node which can be chained in a linked list
-*/
+ * Client.
+ */
 struct client {
     int fd;
     struct list node;
@@ -17,8 +15,6 @@ struct client {
 
 /*
  * Initialize a client.
- *
- * The client is initially closed.
  */
 void client_init(struct client *client);
 
