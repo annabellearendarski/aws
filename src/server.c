@@ -34,18 +34,12 @@ server_find_client(struct server *server, int fd)
     struct client *client;
     struct hlist *client_bucket;
 
-    client_bucket = server_get_client_bucket(server,fd);
-
-    if (!client_bucket) {
-        return NULL;
-    }
+    client_bucket = server_get_client_bucket(server, fd);
 
     hlist_for_each_entry(client_bucket, client, node) {
-
         if (client_get_fd(client) == fd) {
             return client;
         }
-
     }
 
     return NULL;
@@ -200,7 +194,7 @@ server_accept_client(struct server *server)
 static struct pollfd *
 server_build_fdarray(struct server *server, nfds_t *fdarray_size)
 {
-    nfds_t i;
+    nfds_t nr_fds;
     struct pollfd *fdarray;
     struct client *client;
     int nr_clients;
@@ -219,19 +213,19 @@ server_build_fdarray(struct server *server, nfds_t *fdarray_size)
     fdarray[0].fd = server->fd;
     fdarray[0].events = POLLIN;
 
-    i = 1;
+    nr_fds = 1;
 
-    for (size_t a = 0; a < ARRAY_SIZE(server->clients); a++) {
-        struct hlist *client_bucket = &(server->clients[a]);
+    for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
+        struct hlist *client_bucket = &(server->clients[i]);
 
         hlist_for_each_entry(client_bucket, client, node) {
-            fdarray[i].fd = client_get_fd(client);
-            fdarray[i].events = POLLIN;
-            i++;
+            fdarray[nr_fds].fd = client_get_fd(client);
+            fdarray[nr_fds].events = POLLIN;
+            nr_fds++;
         }
     }
 
-    *fdarray_size = i;
+    *fdarray_size = nr_fds;
     return fdarray;
 }
 
