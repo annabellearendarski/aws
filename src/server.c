@@ -11,22 +11,41 @@
 #include <unistd.h>
 
 #include "client.h"
-#include "list.h"
+#include "hlist.h"
 #include "macro.h"
 #include "server.h"
 
 #define SERVER_PORT                1026
 #define SERVER_BACKLOG_SIZE        2
 
+static struct hlist *
+server_get_client_bucket(struct server *server, const int fd)
+{
+    size_t index;
+
+    index = fd % SERVER_HTABLE_SIZE;
+    assert(index < ARRAY_SIZE(server->clients));
+    return &server->clients[index];
+}
+
 static struct client *
 server_find_client(struct server *server, int fd)
 {
     struct client *client;
+    struct hlist *client_bucket;
 
-    list_for_each_entry_reverse(&server->clients, client, node) {
+    client_bucket = server_get_client_bucket(server,fd);
+
+    if (!client_bucket) {
+        return NULL;
+    }
+
+    hlist_for_each_entry(client_bucket, client, node) {
+
         if (client_get_fd(client) == fd) {
             return client;
         }
+
     }
 
     return NULL;
@@ -36,6 +55,7 @@ static struct client *
 server_alloc_client(struct server *server, int fd)
 {
     struct client *client;
+    struct hlist *client_bucket;
 
     client = malloc(sizeof(*client));
 
@@ -43,8 +63,14 @@ server_alloc_client(struct server *server, int fd)
         return NULL;
     }
 
+    client_bucket = server_get_client_bucket(server,fd);
+
+    if (!client_bucket) {
+        return NULL;
+    }
+
     client_open(client, fd);
-    list_insert_tail(&server->clients, &client->node);
+    hlist_insert_head(client_bucket, &client->node);
 
     return client;
 }
@@ -52,7 +78,7 @@ server_alloc_client(struct server *server, int fd)
 static void
 server_free_client(struct server *server, struct client *client)
 {
-    list_remove(&client->node);
+    hlist_remove(&client->node);
     server->nr_clients--;
 
     client_close(client);
@@ -116,7 +142,11 @@ server_init(struct server *server)
     server->fd = fd;
     server->nr_clients = 0;
 
-    list_init(&server->clients);
+     for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
+        struct hlist *client_bucket = &(server->clients[i]);
+
+        hlist_init(client_bucket);
+    }
 
     return 0;
 
@@ -130,10 +160,14 @@ void server_cleanup(struct server *server)
 {
     assert(server);
 
-    while (!list_empty(&server->clients)) {
-        struct client *client = list_first_entry(&server->clients, struct client, node);
+    for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
+        struct hlist *client_bucket = &(server->clients[i]);
 
-        server_free_client(server, client);
+        while (!hlist_empty(client_bucket)) {
+            struct client *client = hlist_first_entry(client_bucket, struct client, node);
+
+            server_free_client(server, client);
+        }
     }
 }
 
@@ -187,10 +221,14 @@ server_build_fdarray(struct server *server, nfds_t *fdarray_size)
 
     i = 1;
 
-    list_for_each_entry_reverse(&server->clients, client, node) {
-        fdarray[i].fd = client_get_fd(client);
-        fdarray[i].events = POLLIN;
-        i++;
+    for (size_t a = 0; a < ARRAY_SIZE(server->clients); a++) {
+        struct hlist *client_bucket = &(server->clients[a]);
+
+        hlist_for_each_entry(client_bucket, client, node) {
+            fdarray[i].fd = client_get_fd(client);
+            fdarray[i].events = POLLIN;
+            i++;
+        }
     }
 
     *fdarray_size = i;

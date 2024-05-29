@@ -1,6 +1,9 @@
 #ifndef MACRO_H
 #define MACRO_H
 
+#define MACRO_BEGIN         ({
+#define MACRO_END           })
+
 #define ARRAY_SIZE(x)       (sizeof(x) / sizeof((x)[0]))
 
 #define container_of(ptr, type, member) ({			\

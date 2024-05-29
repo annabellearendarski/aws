@@ -4,15 +4,15 @@
 #include <stdbool.h>
 
 #include "client.h"
-#include "list.h"
+#include "hlist.h"
 
-#define SERVER_MAX_NR_CLIENTS       10
+#define SERVER_HTABLE_SIZE  10
 
 /*
  * Server descriptor.
  */
 struct server {
-    struct list clients;
+    struct hlist clients[SERVER_HTABLE_SIZE];
     int fd;
     int nr_clients;
 };

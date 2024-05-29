@@ -3,14 +3,14 @@
 
 #include <stdbool.h>
 
-#include "list.h"
+#include "hlist.h"
 
 /*
  * Client.
  */
 struct client {
     int fd;
-    struct list node;
+    struct hlist_node node;
 };
 
 /*
