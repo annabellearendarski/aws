@@ -58,7 +58,6 @@ client_process(struct client *client)
     int error;
 
     nr_bytes_rcv = recv(client->fd, buffer, sizeof(buffer), MSG_DONTWAIT);
-printf("%s:%ld\n", __func__, nr_bytes_rcv);
 
     if (nr_bytes_rcv == -1) {
         error = errno;

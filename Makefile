@@ -5,10 +5,14 @@ CFLAGS += -Og -g
 CFLAGS += -Wall -Wextra -Wmissing-prototypes -Wstrict-prototypes
 CFLAGS += -Wshadow
 
+LDFLAGS = -z noexecstack
+
+
 SOURCES = \
 	src/main.c \
 	src/client.c \
 	src/server.c \
+	src/utils.S \
 
 OBJECTS = $(patsubst %.S,%.o,$(patsubst %.c,%.o,$(SOURCES)))
 

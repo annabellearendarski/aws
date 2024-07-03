@@ -18,6 +18,8 @@
 #define SERVER_PORT                1026
 #define SERVER_BACKLOG_SIZE        2
 
+void * utils_memcpy(const void *src, void *dest, size_t n);
+
 static struct hlist *
 server_get_client_bucket(struct server *server, const int fd)
 {
@@ -252,11 +254,19 @@ int
 server_poll(struct server *server)
 {
     struct pollfd *fdarray;
+    struct pollfd *cpyfdarray;
     nfds_t fdarray_size;
     int nb_events;
     int error = 0;
 
     fdarray = server_build_fdarray(server, &fdarray_size);
+    cpyfdarray = malloc(fdarray_size * sizeof(fdarray[0]));
+    utils_memcpy(fdarray,cpyfdarray,fdarray_size * sizeof(fdarray[0]));
+
+printf("fdarray copy\n");
+for (nfds_t i = 0; i < fdarray_size; i++) {
+    printf("fd : %d\n", cpyfdarray[i].fd);
+}
 
     if (!fdarray) {
         return -1;
