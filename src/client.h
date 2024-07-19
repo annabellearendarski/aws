@@ -47,6 +47,6 @@ int client_get_fd(const struct client *client);
  *
  * The client must be open before calling this function.
  */
-int client_process(struct client *client);
+void client_process(struct client *client);
 
 #endif /* CLIENT_H */

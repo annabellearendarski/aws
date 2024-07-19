@@ -7,21 +7,21 @@ utils_memcpy:
   mov %rsp, %rbp
   sub $24, %rsp
 
-  mov %rdi, -8(%rbp)
-  mov %rsi, -16(%rbp)
-  mov %rdx, -24(%rbp)
+  mov %rdi, -8(%rbp)  /* src */
+  mov %rsi, -16(%rbp) /* dst */
+  mov %rdx, -24(%rbp) /* size */
 
-  loops:
-  mov -8(%rbp), %rcx
-  mov (%rcx), %rdi
-  mov -16(%rbp), %rsi
-  mov %rdi, (%rsi)
-  addq $1, -8(%rbp)
-  addq $1, -16(%rbp)
-  subb $1, -24(%rbp)
-  jnz loops
+  movq %rsi, %rax     /* save dst */
 
-  mov %rsi, %rax
+1:
+  movq -8(%rbp), %rcx  /* rcx = src */
+  movb (%rcx), %dil    /* rdi = *src */
+  movq -16(%rbp), %rsi  /* rsi = dst */
+  movb %dil, (%rsi)     /* *dst = *src */
+  addq $1, -8(%rbp)    /* src++ */
+  addq $1, -16(%rbp)   /* dst++ */
+  subq $1, -24(%rbp)   /* size-- */
+  jnz 1b
 
   mov %rbp, %rsp
   pop %rbp

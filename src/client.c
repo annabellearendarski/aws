@@ -49,7 +49,7 @@ client_get_fd(const struct client *client)
     return client->fd;
 }
 
-int
+void
 client_process(struct client *client)
 {
     ssize_t nr_bytes_rcv;
@@ -57,7 +57,7 @@ client_process(struct client *client)
     char buffer[512];
     int error;
 
-    nr_bytes_rcv = recv(client->fd, buffer, sizeof(buffer), MSG_DONTWAIT);
+    nr_bytes_rcv = recv(client->fd, buffer, sizeof(buffer), 0);
 
     if (nr_bytes_rcv == -1) {
         error = errno;
@@ -68,7 +68,7 @@ client_process(struct client *client)
 
             error = ENOTCONN;
         } else {
-            nr_bytes_sent = send(client->fd, buffer, nr_bytes_rcv, 0);
+            printf("%s", buffer);
 
             if (nr_bytes_sent == -1) {
                 error = errno;
@@ -77,6 +77,5 @@ client_process(struct client *client)
             }
         }
     }
-
-    return error;
+    //TODO : how to handle errors ?
 }

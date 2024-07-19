@@ -38,4 +38,6 @@ void server_cleanup(struct server *server);
  */
 int server_poll(struct server *server);
 
+void server_free_client(struct server *server, struct client *client);
+
 #endif /* SERVER_H */

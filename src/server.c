@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <poll.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stddef.h>
@@ -19,6 +20,11 @@
 #define SERVER_BACKLOG_SIZE        2
 
 void * utils_memcpy(const void *src, void *dest, size_t n);
+
+struct thread_params {
+    struct server *server;
+    int fd;
+};
 
 static struct hlist *
 server_get_client_bucket(struct server *server, const int fd)
@@ -77,7 +83,7 @@ server_alloc_client(struct server *server, int fd)
     return client;
 }
 
-static void
+void
 server_free_client(struct server *server, struct client *client)
 {
     hlist_remove(&client->node);
@@ -173,6 +179,24 @@ void server_cleanup(struct server *server)
     }
 }
 
+static void*
+server_handle_client(void *params)
+{
+    struct thread_params *thread_params;
+    thread_params = (struct thread_params*) params;
+
+    struct client *client = server_find_client(thread_params->server, thread_params->fd);
+
+    printf("client fd %d\n", client->fd);
+
+    client_process(client);
+    //TODO : free client ?
+    /*if (error) {
+        server_free_client(server, client);
+    }*/
+    return 0;
+}
+
 static int
 server_accept_client(struct server *server)
 {
@@ -180,6 +204,10 @@ server_accept_client(struct server *server)
     struct client *client;
     struct sockaddr_in client_addr;
     socklen_t client_addr_size;
+    pthread_attr_t      attr;
+    pthread_t *client_thread;
+    struct thread_params *thread_params;
+    int error = 0;
 
     client_addr_size = sizeof(client_addr);
     fd = accept(server->fd, (struct sockaddr *)&client_addr, &client_addr_size);
@@ -190,114 +218,72 @@ server_accept_client(struct server *server)
 
     client = server_alloc_client(server, fd);
 
-    if (client) {
-        server->nr_clients = server->nr_clients + 1;
-        printf("Accept client fd %d\n",fd);
-        return 0;
-    } else {
+    if (!client) {
         return -1;
     }
-}
 
-static struct pollfd *
-server_build_fdarray(struct server *server, nfds_t *fdarray_size)
-{
-    nfds_t i;
-    struct pollfd *fdarray;
-    struct client *client;
-    int nr_clients;
+    server->nr_clients = server->nr_clients + 1;
+    printf("Accept client fd %d\n",fd);
 
-    assert(server);
-    assert(fdarray_size);
+    thread_params = malloc(sizeof(*thread_params));
 
-    nr_clients = server->nr_clients;
-
-    fdarray = malloc((nr_clients + 1) * sizeof(fdarray[0]));
-
-    if (!fdarray) {
-        return NULL;
+    if (!thread_params) {
+        return -1;
     }
 
-    fdarray[0].fd = server->fd;
-    fdarray[0].events = POLLIN;
+    thread_params->fd = fd;
+    thread_params->server = server;
 
-    i = 1;
+    client_thread = malloc(sizeof(*client_thread));
 
-    for (size_t a = 0; a < ARRAY_SIZE(server->clients); a++) {
-        struct hlist *client_bucket = &(server->clients[a]);
-
-        hlist_for_each_entry(client_bucket, client, node) {
-            fdarray[i].fd = client_get_fd(client);
-            fdarray[i].events = POLLIN;
-            i++;
-        }
+    if (!client_thread) {
+        return -1;
     }
 
-    *fdarray_size = i;
-    return fdarray;
-}
+    error = pthread_attr_init(&attr);
 
-static void
-server_handle_client(struct server *server, int fd)
-{
-    struct client *client = server_find_client(server, fd);
-    int error;
-
-    error = client_process(client);
-
-    if (error) {
-        server_free_client(server, client);
+    if (error != 0) {
+        goto out;
     }
+
+    error = pthread_create(client_thread, &attr, server_handle_client, (void *)thread_params);
+
+    if (error != 0) {
+        goto out;
+    }
+
+    error = pthread_detach(*client_thread);
+
+    if (error != 0) {
+        goto out;
+    }
+
+    error = pthread_attr_destroy(&attr);
+
+    if (error != 0) {
+        goto out;
+    }
+
+    return 0;
+
+out:
+    free(thread_params);
+    free(client_thread);
+    return error;
 }
 
 int
 server_poll(struct server *server)
 {
-    struct pollfd *fdarray;
-    struct pollfd *cpyfdarray;
-    nfds_t fdarray_size;
-    int nb_events;
     int error = 0;
 
-    fdarray = server_build_fdarray(server, &fdarray_size);
-    cpyfdarray = malloc(fdarray_size * sizeof(fdarray[0]));
-    utils_memcpy(fdarray,cpyfdarray,fdarray_size * sizeof(fdarray[0]));
+    error = server_accept_client(server);
 
-printf("fdarray copy\n");
-for (nfds_t i = 0; i < fdarray_size; i++) {
-    printf("fd : %d\n", cpyfdarray[i].fd);
-}
-
-    if (!fdarray) {
-        return -1;
-    }
-
-    nb_events = poll(fdarray, fdarray_size, -1);
-
-    if (nb_events == -1) {
-        return -1;
-    }
-
-    for (nfds_t i = 0; i < fdarray_size; i++) {
-        const struct pollfd *pollfd = &fdarray[i];
-
-        if (pollfd->revents == 0) {
-            continue;
-        }
-
-        if (pollfd->fd == server->fd) {
-            error = server_accept_client(server);
-
-            if (error != 0) {
-                server_close(server);
-                goto out;
-            }
-        } else {
-            server_handle_client(server, pollfd->fd);
-        }
+    if (error != 0) {
+        server_close(server);
+        goto out;
     }
 
 out:
-    free(fdarray);
     return error;
 }
