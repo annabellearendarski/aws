@@ -21,10 +21,7 @@
 
 void * utils_memcpy(const void *src, void *dest, size_t n);
 
-struct thread_params {
-    struct server *server;
-    int fd;
-};
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static struct hlist *
 server_get_client_bucket(struct server *server, const int fd)
@@ -59,11 +56,26 @@ server_find_client(struct server *server, int fd)
     return NULL;
 }
 
+static void
+server_up_down_nr_client(struct server *server, int mode)
+{
+    pthread_mutex_lock(&mutex);
+
+    if (mode == 0) {
+        server->nr_clients++;
+    } else {
+        server->nr_clients--;
+    }
+
+    pthread_mutex_unlock(&mutex);
+}
+
 static struct client *
 server_alloc_client(struct server *server, int fd)
 {
     struct client *client;
     struct hlist *client_bucket;
+    int error;
 
     client = malloc(sizeof(*client));
 
@@ -74,16 +86,37 @@ server_alloc_client(struct server *server, int fd)
     client_bucket = server_get_client_bucket(server,fd);
 
     if (!client_bucket) {
+        free(client);
         return NULL;
     }
 
     client_open(client, fd);
+    error = client_create_thread(client);
+
+    if (error != 0) {
+        free(client);
+        return NULL;
+    }
+
+    client_set_server(client, server);
     hlist_insert_head(client_bucket, &client->node);
+    server_up_down_nr_client(server, 0);
 
     return client;
 }
 
 void
+server_remove_client(struct server *server, struct client *client)
+{
+    hlist_remove(&client->node);
+    server_up_down_nr_client(server, 1);
+
+    client_close(client);
+    free(client);
+}
+
+
+static void
 server_free_client(struct server *server, struct client *client)
 {
     hlist_remove(&client->node);
@@ -179,24 +212,6 @@ void server_cleanup(struct server *server)
     }
 }
 
-static void*
-server_handle_client(void *params)
-{
-    struct thread_params *thread_params;
-    thread_params = (struct thread_params*) params;
-
-    struct client *client = server_find_client(thread_params->server, thread_params->fd);
-
-    printf("client fd %d\n", client->fd);
-
-    client_process(client);
-    //TODO : free client ?
-    /*if (error) {
-        server_free_client(server, client);
-    }*/
-    return 0;
-}
-
 static int
 server_accept_client(struct server *server)
 {
@@ -204,10 +219,6 @@ server_accept_client(struct server *server)
     struct client *client;
     struct sockaddr_in client_addr;
     socklen_t client_addr_size;
-    pthread_attr_t      attr;
-    pthread_t *client_thread;
-    struct thread_params *thread_params;
-    int error = 0;
 
     client_addr_size = sizeof(client_addr);
     fd = accept(server->fd, (struct sockaddr *)&client_addr, &client_addr_size);
@@ -222,61 +233,16 @@ server_accept_client(struct server *server)
         return -1;
     }
 
-    server->nr_clients = server->nr_clients + 1;
-    printf("Accept client fd %d\n",fd);
-
-    thread_params = malloc(sizeof(*thread_params));
-
-    if (!thread_params) {
-        return -1;
-    }
-
-    thread_params->fd = fd;
-    thread_params->server = server;
-
-    client_thread = malloc(sizeof(*client_thread));
-
-    if (!client_thread) {
-        return -1;
-    }
-
-    error = pthread_attr_init(&attr);
-
-    if (error != 0) {
-        goto out;
-    }
-
-    error = pthread_create(client_thread, &attr, server_handle_client, (void *)thread_params);
-
-    if (error != 0) {
-        goto out;
-    }
-
-    error = pthread_detach(*client_thread);
-
-    if (error != 0) {
-        goto out;
-    }
-
-    error = pthread_attr_destroy(&attr);
-
-    if (error != 0) {
-        goto out;
-    }
+    printf("Accept client fd %d\n", fd);
 
     return 0;
-
-out:
-    free(thread_params);
-    free(client_thread);
-    return error;
 }
 
 int
 server_poll(struct server *server)
 {
     int error = 0;
-
+    printf("Nr client %d\n", server->nr_clients);
     error = server_accept_client(server);
 
     if (error != 0) {

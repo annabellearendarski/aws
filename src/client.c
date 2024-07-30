@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include "client.h"
+#include "server.h"
 
 void
 client_init(struct client *client)
@@ -13,6 +14,15 @@ client_init(struct client *client)
     assert(client);
 
     client->fd = -1;
+}
+
+void
+client_set_server(struct client *client, struct server *server)
+{
+    assert(client);
+    assert(server);
+
+    client->server = server;
 }
 
 void
@@ -49,13 +59,15 @@ client_get_fd(const struct client *client)
     return client->fd;
 }
 
-void
-client_process(struct client *client)
+
+static void*
+client_process(void *arg)
 {
     ssize_t nr_bytes_rcv;
     ssize_t nr_bytes_sent;
     char buffer[512];
     int error;
+    struct client *client = arg;
 
     nr_bytes_rcv = recv(client->fd, buffer, sizeof(buffer), 0);
 
@@ -68,8 +80,7 @@ client_process(struct client *client)
 
             error = ENOTCONN;
         } else {
-            printf("%s", buffer);
-
+            nr_bytes_sent = send(client->fd, buffer, nr_bytes_rcv, 0);
             if (nr_bytes_sent == -1) {
                 error = errno;
             } else {
@@ -77,5 +88,27 @@ client_process(struct client *client)
             }
         }
     }
-    //TODO : how to handle errors ?
+
+    if (error != 0) {
+        perror("error : ");
+    }
+
+    server_remove_client(client->server, client);
+
+    return 0;
+}
+
+int
+client_create_thread(struct client *client)
+{
+    int error;
+    error = pthread_create(&client->pthread, NULL, client_process, client);
+
+    if (error != 0) {
+        return -1;
+    }
+
+    pthread_detach(client->pthread);
+
+    return 0;
 }

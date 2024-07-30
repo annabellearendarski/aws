@@ -2,8 +2,11 @@
 #define CLIENT_H
 
 #include <stdbool.h>
+#include <pthread.h>
 
 #include "hlist.h"
+
+struct server;
 
 /*
  * Client.
@@ -11,12 +14,19 @@
 struct client {
     int fd;
     struct hlist_node node;
+    struct server *server;
+    pthread_t pthread;
 };
 
 /*
  * Initialize a client.
  */
 void client_init(struct client *client);
+
+/*
+ * Set server.
+ */
+void client_set_server(struct client *client, struct server *server);
 
 /*
  * Open a client.
@@ -43,10 +53,10 @@ bool client_is_closed(struct client *client);
 int client_get_fd(const struct client *client);
 
 /*
- * Process data received by a client.
+ * Create client thread.
  *
  * The client must be open before calling this function.
  */
-void client_process(struct client *client);
+int client_create_thread(struct client *client);
 
 #endif /* CLIENT_H */
