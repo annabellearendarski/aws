@@ -22,6 +22,7 @@
 void * utils_memcpy(const void *src, void *dest, size_t n);
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex_inc = PTHREAD_MUTEX_INITIALIZER;
 
 static struct hlist *
 server_get_client_bucket(struct server *server, const int fd)
@@ -56,29 +57,13 @@ server_find_client(struct server *server, int fd)
     return NULL;
 }
 
-static void
-server_up_down_nr_client(struct server *server, int mode)
-{
-    pthread_mutex_lock(&mutex);
-
-    if (mode == 0) {
-        server->nr_clients++;
-    } else {
-        server->nr_clients--;
-    }
-
-    pthread_mutex_unlock(&mutex);
-}
-
 static struct client *
 server_alloc_client(struct server *server, int fd)
 {
     struct client *client;
     struct hlist *client_bucket;
-    int error;
 
-    client = malloc(sizeof(*client));
-
+    client = client_create(server, fd);
     if (!client) {
         return NULL;
     }
@@ -90,17 +75,13 @@ server_alloc_client(struct server *server, int fd)
         return NULL;
     }
 
-    client_open(client, fd);
-    error = client_create_thread(client);
-
-    if (error != 0) {
-        free(client);
-        return NULL;
-    }
-
-    client_set_server(client, server);
     hlist_insert_head(client_bucket, &client->node);
-    server_up_down_nr_client(server, 0);
+
+    pthread_mutex_lock(&mutex);
+
+    server->nr_clients++;
+
+    pthread_mutex_unlock(&mutex);
 
     return client;
 }
@@ -108,22 +89,14 @@ server_alloc_client(struct server *server, int fd)
 void
 server_remove_client(struct server *server, struct client *client)
 {
-    hlist_remove(&client->node);
-    server_up_down_nr_client(server, 1);
+    pthread_mutex_lock(&mutex);
 
-    client_close(client);
-    free(client);
-}
+    assert(server->nr_clients > 0);
 
-
-static void
-server_free_client(struct server *server, struct client *client)
-{
     hlist_remove(&client->node);
     server->nr_clients--;
 
-    client_close(client);
-    free(client);
+    pthread_mutex_unlock(&mutex);
 }
 
 static void
@@ -203,11 +176,16 @@ void server_cleanup(struct server *server)
 
     for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
         struct hlist *client_bucket = &(server->clients[i]);
+        int error;
+        struct client *client;
+        struct client *tmp_client;
 
-        while (!hlist_empty(client_bucket)) {
-            struct client *client = hlist_first_entry(client_bucket, struct client, node);
+        hlist_for_each_entry_safe(client_bucket, client, tmp_client, node) {
+            error = pthread_join(client->pthread, NULL);
 
-            server_free_client(server, client);
+            if (error) {
+                perror("Error");
+            }
         }
     }
 }
@@ -219,6 +197,7 @@ server_accept_client(struct server *server)
     struct client *client;
     struct sockaddr_in client_addr;
     socklen_t client_addr_size;
+
 
     client_addr_size = sizeof(client_addr);
     fd = accept(server->fd, (struct sockaddr *)&client_addr, &client_addr_size);

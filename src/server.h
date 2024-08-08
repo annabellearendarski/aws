@@ -39,9 +39,7 @@ void server_cleanup(struct server *server);
 int server_poll(struct server *server);
 
 /*
- * Removing a client.
- *
- * Clean up all resources used by a client.
+ * Remove a client.
  */
 void server_remove_client(struct server *server, struct client *client);
 
