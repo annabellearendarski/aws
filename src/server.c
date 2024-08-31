@@ -35,29 +35,6 @@ server_get_client_bucket(struct server *server, const int fd)
 }
 
 static struct client *
-server_find_client(struct server *server, int fd)
-{
-    struct client *client;
-    struct hlist *client_bucket;
-
-    client_bucket = server_get_client_bucket(server,fd);
-
-    if (!client_bucket) {
-        return NULL;
-    }
-
-    hlist_for_each_entry(client_bucket, client, node) {
-
-        if (client_get_fd(client) == fd) {
-            return client;
-        }
-
-    }
-
-    return NULL;
-}
-
-static struct client *
 server_alloc_client(struct server *server, int fd)
 {
     struct client *client;
@@ -75,10 +52,10 @@ server_alloc_client(struct server *server, int fd)
         return NULL;
     }
 
-    hlist_insert_head(client_bucket, &client->node);
 
     pthread_mutex_lock(&mutex);
 
+    hlist_insert_head(client_bucket, &client->node);
     server->nr_clients++;
 
     pthread_mutex_unlock(&mutex);
@@ -174,7 +151,7 @@ void server_cleanup(struct server *server)
 {
     assert(server);
 
-    for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
+    /*for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
         struct hlist *client_bucket = &(server->clients[i]);
         int error;
         struct client *client;
@@ -187,7 +164,7 @@ void server_cleanup(struct server *server)
                 perror("Error");
             }
         }
-    }
+    }*/
 }
 
 static int
@@ -222,7 +199,12 @@ server_poll(struct server *server)
 {
     int error = 0;
     printf("Nr client %d\n", server->nr_clients);
-    error = server_accept_client(server);
+
+    //for (int i = 0; i < 3; i++) {
+        error = server_accept_client(server);
+    //}
+    //server_close(server);
+    //goto out;
 
     if (error != 0) {
         server_close(server);
