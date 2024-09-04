@@ -7,11 +7,14 @@ CFLAGS += -Wshadow
 
 LDFLAGS = -z noexecstack
 
+LIBS = -lm
 
 SOURCES = \
 	src/main.c \
 	src/client.c \
 	src/server.c \
+	src/http.c \
+	src/file.c \
 	src/utils.S \
 
 OBJECTS = $(patsubst %.S,%.o,$(patsubst %.c,%.o,$(SOURCES)))

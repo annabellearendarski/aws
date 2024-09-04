@@ -28,6 +28,15 @@ list_add(struct list *prev, struct list *tail, struct list *node)
     node->prev = prev;
 }
 
+/*
+ * Insert a node at the head of a list.
+ */
+static inline void
+list_insert_head(struct list *list, struct list *node)
+{
+    list_add(list, list->next, node);
+}
+
 static inline void
 list_insert_tail(struct list *tail, struct list *node)
 {
@@ -86,16 +95,36 @@ list_remove(struct list *node)
     list_entry(list_last(list), type, member)
 
 /*
+ * Return the node next to the given node.
+ */
+static inline struct list *
+list_next(const struct list *node)
+{
+    return node->next;
+}
+
+/*
  * Get the entry previous to the given entry.
  */
 #define list_prev_entry(entry, member) \
     list_entry(list_prev(&(entry)->member), typeof(*(entry)), member)
 
+#define list_next_entry(entry, member) \
+    list_entry(list_next(&(entry)->member), typeof(*(entry)), member)
 
 #define list_for_each_entry_reverse(list, entry, member)            \
 for (entry = list_last_entry(list, typeof(*entry), member);         \
      !list_end(list, &entry->member);                               \
      entry = list_prev_entry(entry, member))
 
+/*
+ * Forge a loop to process all entries of a list.
+ *
+ * The entry node must not be altered during the loop.
+ */
+#define list_for_each_entry(list, entry, member)                    \
+for (entry = list_first_entry(list, typeof(*entry), member);        \
+     !list_end(list, &entry->member);                               \
+     entry = list_next_entry(entry, member))
 
 #endif /*LIST_H*/
