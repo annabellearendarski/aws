@@ -1,8 +1,9 @@
+#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -10,7 +11,7 @@
 #include "http.h"
 #include "list.h"
 
-#define CLIENT_MIN_SIZE_REQUESTED_PATH 4
+#define HTTP_MIN_SIZE_REQUESTED_PATH 4
 
 /*
  * Extract ressource path from GET http request.
@@ -31,7 +32,7 @@ http_retrieve_requested_ressource_path(struct http_transaction *http_transaction
     char *start_address_path;
     char *ressource_path;
 
-    if ((strncmp(http_transaction->request,"GET", 3) != 0) || (strlen(http_transaction->request) < CLIENT_MIN_SIZE_REQUESTED_PATH)) {
+    if ((strncmp(http_transaction->request,"GET", 3) != 0) || (strlen(http_transaction->request) < HTTP_MIN_SIZE_REQUESTED_PATH)) {
         return NULL;
     }
 
@@ -268,7 +269,7 @@ http_build_response(struct http_transaction *http_transaction)
 }
 
 struct http_transaction *
-http_response_create(char *request)
+http_transaction_create(char *request)
 {
     struct http_transaction *http_transaction;
     char *requested_path;
@@ -293,5 +294,18 @@ http_response_create(char *request)
 
     return http_transaction;
 
+}
+
+void
+http_transaction_destroy(struct http_transaction *http_transaction)
+{
+    assert(http_transaction);
+
+    if (http_transaction->response) {
+        free(http_transaction->response);
+    }
+
+    free(http_transaction->requested_path);
+    free(http_transaction);
 }
 

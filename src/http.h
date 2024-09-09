@@ -4,14 +4,24 @@
 
 #include <stddef.h>
 
-struct http_transaction
-{
+/*
+ * http_transaction descriptor.
+ */
+struct http_transaction {
     char *request;
     char *response;
     char *requested_path;
     size_t response_len;
 };
 
-struct http_transaction * http_response_create(char *request);
+/*
+ * Build a http_transaction.
+ */
+struct http_transaction * http_transaction_create(char *request);
+
+/*
+ * Destroy http_transaction object.
+ */
+void http_transaction_destroy(struct http_transaction *http_transaction);
 
 #endif /* HTTP_H */

@@ -151,20 +151,15 @@ void server_cleanup(struct server *server)
 {
     assert(server);
 
-    /*for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
+    for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
         struct hlist *client_bucket = &(server->clients[i]);
-        int error;
-        struct client *client;
-        struct client *tmp_client;
 
-        hlist_for_each_entry_safe(client_bucket, client, tmp_client, node) {
-            error = pthread_join(client->pthread, NULL);
+        while (!hlist_empty(client_bucket)) {
+            struct client *client = hlist_first_entry(client_bucket, struct client, node);
 
-            if (error) {
-                perror("Error");
-            }
+            server_remove_client(server, client);
         }
-    }*/
+    }
 }
 
 static int
@@ -200,11 +195,7 @@ server_poll(struct server *server)
     int error = 0;
     printf("Nr client %d\n", server->nr_clients);
 
-     for (int i = 0; i < 2; i++) {
-        error = server_accept_client(server);
-    }
-    server_close(server);
-    goto out;
+    error = server_accept_client(server);
 
     if (error != 0) {
         server_close(server);

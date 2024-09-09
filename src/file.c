@@ -8,8 +8,8 @@
 #include "file.h"
 #include "list.h"
 
-#define CLIENT_PDF_SIGNATURE 0x0000002D46445025
-#define CLIENT_JPEG_SIGNATURE 0x000000FFE0FFD8FF
+#define FILE_PDF_SIGNATURE 0x0000002D46445025
+#define FILE_JPEG_SIGNATURE 0x000000FFE0FFD8FF
 
 unsigned int
 file_find_entry_type(char *entry_path)
@@ -105,9 +105,9 @@ file_retrieve_signature(int file_fd)
     fread(&file_signature, 1, 8, file);
     fseek(file, 0, SEEK_SET);
 
-    if (((file_signature & 0x000000FFFFFFFFFF) ^ CLIENT_PDF_SIGNATURE) == 0) {
+    if (((file_signature & 0x000000FFFFFFFFFF) ^ FILE_PDF_SIGNATURE) == 0) {
         mime_type = "application/pdf";
-    } else if (((file_signature | 0xFFFFFFFF00000000) ^ CLIENT_JPEG_SIGNATURE) == 0) {
+    } else if (((file_signature | 0xFFFFFFFF00000000) ^ FILE_JPEG_SIGNATURE) == 0) {
         mime_type = "image/jpeg";
     } else {
         mime_type = "";

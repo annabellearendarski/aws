@@ -15,7 +15,7 @@
 static struct http_transaction *
 client_retrieve_http_response(struct client *client, char *request)
 {
-    struct http_transaction *http_response = http_response_create(request);
+    struct http_transaction *http_response = http_transaction_create(request);
 
     return http_response;
 }
@@ -46,9 +46,7 @@ client_run(void *arg)
 
                     if (http_transaction->response) {
                         send(client->fd, http_transaction->response, http_transaction->response_len, 0);
-                        free(http_transaction->response);
-                        free(http_transaction->requested_path);
-                        free(http_transaction);
+                        http_transaction_destroy(http_transaction);
                     }
                 }
             }
