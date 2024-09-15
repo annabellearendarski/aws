@@ -21,18 +21,20 @@
  * Ressource path is returned by adding "." as first caracter
  * which result to the following returned path : ./x
  * The minimal ressource path is the one which is pointing to the current folder
- * which will result to GET / .Thus request needs to be at least 5 bytes when GET
- * is detected in the request.
+ * which will result to GET / .Thus request needs to be at least 5 bytes when
+ * GET is detected in the request.
  */
 static char *
-http_retrieve_requested_ressource_path(struct http_transaction *http_transaction)
+http_retrieve_requested_ressource_path(
+    struct http_transaction *http_transaction)
 {
     char *end;
     int ressource_path_len;
     char *start_address_path;
     char *ressource_path;
 
-    if ((strncmp(http_transaction->request,"GET", 3) != 0) || (strlen(http_transaction->request) < HTTP_MIN_SIZE_REQUESTED_PATH)) {
+    if ((strncmp(http_transaction->request, "GET", 3) != 0) ||
+        (strlen(http_transaction->request) < HTTP_MIN_SIZE_REQUESTED_PATH)) {
         return NULL;
     }
 
@@ -40,7 +42,7 @@ http_retrieve_requested_ressource_path(struct http_transaction *http_transaction
 
     end = start_address_path;
 
-    while( *end != ' ') {
+    while (*end != ' ') {
         end++;
     }
 
@@ -52,38 +54,42 @@ http_retrieve_requested_ressource_path(struct http_transaction *http_transaction
     }
 
     ressource_path[0] = '.';
-    snprintf(ressource_path + 1, ressource_path_len, "%s\n", start_address_path);
+    snprintf(ressource_path + 1, ressource_path_len, "%s\n",
+             start_address_path);
 
     return ressource_path;
-
 }
 
 static char *
-http_build_html_body_for_folder_request(struct http_transaction *http_transaction)
+http_build_html_body_for_folder_request(
+    struct http_transaction *http_transaction)
 {
     int nr_char;
     int nr_entries_found;
 
-    size_t html_page_head_length = 80 + 2 * strlen(http_transaction->requested_path) + 1;
+    size_t html_page_head_length =
+        80 + 2 * strlen(http_transaction->requested_path) + 1;
     char *html_page_head = malloc(html_page_head_length);
 
     if (!html_page_head) {
         return NULL;
     }
 
-    struct list *entries = file_list_folder_entries(http_transaction->requested_path, &nr_entries_found);
+    struct list *entries = file_list_folder_entries(
+        http_transaction->requested_path, &nr_entries_found);
 
-    if(!entries) {
+    if (!entries) {
         return NULL;
     }
 
     nr_char = snprintf(html_page_head, html_page_head_length,
-            "<html>"
-            "<head><title>Index of %s </title></head> "
-            "<body>"
-            "<h1>Index of %s </h1>"
-            "<hr><pre>",
-            http_transaction->requested_path, http_transaction->requested_path);
+                       "<html>"
+                       "<head><title>Index of %s </title></head> "
+                       "<body>"
+                       "<h1>Index of %s </h1>"
+                       "<hr><pre>",
+                       http_transaction->requested_path,
+                       http_transaction->requested_path);
 
     if (nr_char >= (int)html_page_head_length || nr_char < 0) {
         free(entries);
@@ -100,19 +106,19 @@ http_build_html_body_for_folder_request(struct http_transaction *http_transactio
         return NULL;
     }
 
-
     nr_char = 0;
     struct entry *entry;
 
-    list_for_each_entry(entries, entry, node) {
+    list_for_each_entry(entries, entry, node)
+    {
         if (entry->type == ENTRY_DIR) {
-            nr_char += snprintf(html_page_body + nr_char, html_page_body_length - nr_char,
-                "<a href='%s/'>%s/</a><br>" ,
-                entry->name, entry->name);
+            nr_char += snprintf(
+                html_page_body + nr_char, html_page_body_length - nr_char,
+                "<a href='%s/'>%s/</a><br>", entry->name, entry->name);
         } else {
-           nr_char += snprintf(html_page_body + nr_char, html_page_body_length - nr_char,
-                "<a href='%s'>%s</a><br>" ,
-                entry->name, entry->name);
+            nr_char += snprintf(
+                html_page_body + nr_char, html_page_body_length - nr_char,
+                "<a href='%s'>%s</a><br>", entry->name, entry->name);
         }
 
         if (nr_char >= (int)html_page_body_length || nr_char < 0) {
@@ -126,10 +132,11 @@ http_build_html_body_for_folder_request(struct http_transaction *http_transactio
     const char *html_page_bottom = "</pre><hr></body></html>";
     size_t html_page_bottom_length = strlen(html_page_body);
 
-    size_t html_page_length = html_page_head_length + html_page_body_length + html_page_bottom_length;
+    size_t html_page_length =
+        html_page_head_length + html_page_body_length + html_page_bottom_length;
     char *html_page = malloc(html_page_length + 1);
 
-    if(!html_page) {
+    if (!html_page) {
         free(html_page_head);
         free(html_page_body);
         free(entries);
@@ -139,7 +146,6 @@ http_build_html_body_for_folder_request(struct http_transaction *http_transactio
     strcpy(html_page, html_page_head);
     strcat(html_page, html_page_body);
     strcat(html_page, html_page_bottom);
-
 
     free(html_page_head);
     free(html_page_body);
@@ -152,18 +158,18 @@ static void
 http_build_response_error(struct http_transaction *http_transaction)
 {
     http_transaction->response = "HTTP/1.1 404 Not Found\r\n"
-                                "Content-Type: text/plain\r\n"
-                                "Content-Length: 13\r\n"
-                                "Connection: close\r\n"
-                                "\r\n"
-                                "404 Not Found";
+                                 "Content-Type: text/plain\r\n"
+                                 "Content-Length: 13\r\n"
+                                 "Connection: close\r\n"
+                                 "\r\n"
+                                 "404 Not Found";
 
     http_transaction->response_len = strlen(http_transaction->response);
-
 }
 
 static void
-http_build_response_for_folder_request(struct http_transaction *http_transaction)
+http_build_response_for_folder_request(
+    struct http_transaction *http_transaction)
 {
     int nr_char;
     char *http_body;
@@ -175,17 +181,17 @@ http_build_response_for_folder_request(struct http_transaction *http_transaction
         http_transaction->response_len = http_header_len + strlen(http_body);
         http_transaction->response = malloc(http_transaction->response_len + 1);
 
-        if(!http_transaction->response) {
+        if (!http_transaction->response) {
             http_build_response_error(http_transaction);
         } else {
-            nr_char = snprintf(http_transaction->response, http_transaction->response_len,
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: text/html\r\n"
-            "Content-Length: %lu\r\n"
-            "\r\n"
-            "%s",
-            strlen(http_body), http_body);
-
+            nr_char = snprintf(http_transaction->response,
+                               http_transaction->response_len,
+                               "HTTP/1.1 200 OK\r\n"
+                               "Content-Type: text/html\r\n"
+                               "Content-Length: %lu\r\n"
+                               "\r\n"
+                               "%s",
+                               strlen(http_body), http_body);
 
             if (nr_char >= (int)http_transaction->response_len || nr_char < 0) {
                 http_build_response_error(http_transaction);
@@ -197,7 +203,6 @@ http_build_response_for_folder_request(struct http_transaction *http_transaction
         http_build_response_error(http_transaction);
     }
 }
-
 
 static void
 http_build_response_for_file_request(struct http_transaction *http_transaction)
@@ -213,21 +218,24 @@ http_build_response_for_file_request(struct http_transaction *http_transaction)
         mime_type = file_retrieve_signature(file_fd);
         __off_t file_size = file_retrieve_file_size(file_fd);
 
-        int content_lenght_nr_digit = (file_size == 0)? 1 : log10(file_size) + 1;
+        int content_lenght_nr_digit =
+            (file_size == 0) ? 1 : log10(file_size) + 1;
         int http_header_len = 53;
 
-        http_transaction->response_len = http_header_len + strlen(mime_type) + content_lenght_nr_digit + file_size;
+        http_transaction->response_len = http_header_len + strlen(mime_type) +
+                                         content_lenght_nr_digit + file_size;
         http_transaction->response = malloc(http_transaction->response_len + 1);
 
         if (!http_transaction->response) {
             http_build_response_error(http_transaction);
         } else {
-            nr_char = snprintf(http_transaction->response, http_transaction->response_len,
-                "HTTP/1.1 200 OK\r\n"
-                "Content-Type: %s\r\n"
-                "Content-Length: %ld\r\n"
-                "\r\n",
-                mime_type, file_size);
+            nr_char = snprintf(http_transaction->response,
+                               http_transaction->response_len,
+                               "HTTP/1.1 200 OK\r\n"
+                               "Content-Type: %s\r\n"
+                               "Content-Length: %ld\r\n"
+                               "\r\n",
+                               mime_type, file_size);
 
             if (nr_char >= (int)http_transaction->response_len || nr_char < 0) {
                 http_build_response_error(http_transaction);
@@ -235,9 +243,9 @@ http_build_response_for_file_request(struct http_transaction *http_transaction)
                 ssize_t bytes_read;
                 size_t offset = nr_char;
 
-                while ((bytes_read = read(file_fd,
-                                        http_transaction->response + offset,
-                                        http_transaction->response_len - offset)) > 0) {
+                while ((bytes_read = read(
+                            file_fd, http_transaction->response + offset,
+                            http_transaction->response_len - offset)) > 0) {
                     offset += bytes_read;
                 }
             }
@@ -252,7 +260,7 @@ http_build_response(struct http_transaction *http_transaction)
     unsigned int entry_type;
     entry_type = file_find_entry_type(http_transaction->requested_path);
     printf("entry type %d\n", entry_type);
-    printf("path %s\n",http_transaction->requested_path);
+    printf("path %s\n", http_transaction->requested_path);
 
     if (entry_type == ENTRY_DIR) {
         printf("it is a dir\n");
@@ -265,7 +273,6 @@ http_build_response(struct http_transaction *http_transaction)
         http_transaction->response_len = 0;
         http_transaction->response = NULL;
     }
-
 }
 
 struct http_transaction *
@@ -276,7 +283,7 @@ http_transaction_create(char *request)
 
     http_transaction = malloc(sizeof(*http_transaction));
 
-    if(!http_transaction) {
+    if (!http_transaction) {
         return NULL;
     }
 
@@ -293,7 +300,6 @@ http_transaction_create(char *request)
     http_build_response(http_transaction);
 
     return http_transaction;
-
 }
 
 void
@@ -308,4 +314,3 @@ http_transaction_destroy(struct http_transaction *http_transaction)
     free(http_transaction->requested_path);
     free(http_transaction);
 }
-

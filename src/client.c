@@ -1,16 +1,14 @@
 #include <assert.h>
 #include <errno.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 
-
 #include "client.h"
-#include "server.h"
 #include "http.h"
-
+#include "server.h"
 
 static struct http_transaction *
 client_retrieve_http_response(struct client *client, char *request)
@@ -40,12 +38,14 @@ client_run(void *arg)
                 printf("client%d: closed\n", client->fd);
                 break;
             } else {
-                struct http_transaction *http_transaction = client_retrieve_http_response(client, buffer);
+                struct http_transaction *http_transaction =
+                    client_retrieve_http_response(client, buffer);
 
                 if (http_transaction) {
 
                     if (http_transaction->response) {
-                        send(client->fd, http_transaction->response, http_transaction->response_len, 0);
+                        send(client->fd, http_transaction->response,
+                             http_transaction->response_len, 0);
                         http_transaction_destroy(http_transaction);
                     }
                 }
@@ -69,7 +69,6 @@ client_create(struct server *server, int fd)
     int error;
 
     client = malloc(sizeof(*client));
-
     if (!client) {
         return NULL;
     }

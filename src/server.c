@@ -4,8 +4,8 @@
 #include <poll.h>
 #include <pthread.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/fcntl.h>
 #include <sys/socket.h>
@@ -16,10 +16,11 @@
 #include "macro.h"
 #include "server.h"
 
-#define SERVER_PORT                1026
-#define SERVER_BACKLOG_SIZE        2
+#define SERVER_PORT 1026
+#define SERVER_BACKLOG_SIZE 2
 
-void * utils_memcpy(const void *src, void *dest, size_t n);
+void *
+utils_memcpy(const void *src, void *dest, size_t n);
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_inc = PTHREAD_MUTEX_INITIALIZER;
@@ -45,13 +46,12 @@ server_alloc_client(struct server *server, int fd)
         return NULL;
     }
 
-    client_bucket = server_get_client_bucket(server,fd);
+    client_bucket = server_get_client_bucket(server, fd);
 
     if (!client_bucket) {
         free(client);
         return NULL;
     }
-
 
     pthread_mutex_lock(&mutex);
 
@@ -103,7 +103,8 @@ server_init(struct server *server)
     }
 
     reuseaddr = 1;
-    result = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(reuseaddr));
+    result =
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(reuseaddr));
 
     if (result == -1) {
         error = errno;
@@ -133,7 +134,7 @@ server_init(struct server *server)
     server->fd = fd;
     server->nr_clients = 0;
 
-     for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
+    for (size_t i = 0; i < ARRAY_SIZE(server->clients); i++) {
         struct hlist *client_bucket = &(server->clients[i]);
 
         hlist_init(client_bucket);
@@ -147,7 +148,8 @@ error_socket:
     return error;
 }
 
-void server_cleanup(struct server *server)
+void
+server_cleanup(struct server *server)
 {
     assert(server);
 
@@ -155,7 +157,8 @@ void server_cleanup(struct server *server)
         struct hlist *client_bucket = &(server->clients[i]);
 
         while (!hlist_empty(client_bucket)) {
-            struct client *client = hlist_first_entry(client_bucket, struct client, node);
+            struct client *client =
+                hlist_first_entry(client_bucket, struct client, node);
 
             server_remove_client(server, client);
         }
@@ -169,7 +172,6 @@ server_accept_client(struct server *server)
     struct client *client;
     struct sockaddr_in client_addr;
     socklen_t client_addr_size;
-
 
     client_addr_size = sizeof(client_addr);
     fd = accept(server->fd, (struct sockaddr *)&client_addr, &client_addr_size);

@@ -1,7 +1,7 @@
 #include <dirent.h>
 #include <errno.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 
@@ -40,7 +40,7 @@ file_list_folder_entries(const char *dir_path, int *nr_entries)
     struct dirent *next_dir_entry;
     int i = 0;
 
-    entries = malloc (sizeof(*entries));
+    entries = malloc(sizeof(*entries));
 
     if (!entries) {
         return NULL;
@@ -49,7 +49,6 @@ file_list_folder_entries(const char *dir_path, int *nr_entries)
     list_init(entries);
 
     dir_stream = opendir(dir_path);
-
 
     if (dir_stream) {
         errno = 0;
@@ -63,7 +62,7 @@ file_list_folder_entries(const char *dir_path, int *nr_entries)
                 free(entries);
                 return NULL;
             }
-            entry->name = malloc(strlen(next_dir_entry->d_name)+1);
+            entry->name = malloc(strlen(next_dir_entry->d_name) + 1);
             strcpy(entry->name, next_dir_entry->d_name);
             entry->type = file_find_entry_type(next_dir_entry->d_name);
             list_insert_head(entries, &entry->node);
@@ -98,7 +97,7 @@ file_list_folder_entries(const char *dir_path, int *nr_entries)
 const char *
 file_retrieve_signature(int file_fd)
 {
-    FILE *file= fdopen(file_fd, "r");
+    FILE *file = fdopen(file_fd, "r");
     const char *mime_type;
     unsigned long file_signature;
 
@@ -107,7 +106,8 @@ file_retrieve_signature(int file_fd)
 
     if (((file_signature & 0x000000FFFFFFFFFF) ^ FILE_PDF_SIGNATURE) == 0) {
         mime_type = "application/pdf";
-    } else if (((file_signature | 0xFFFFFFFF00000000) ^ FILE_JPEG_SIGNATURE) == 0) {
+    } else if (((file_signature | 0xFFFFFFFF00000000) ^ FILE_JPEG_SIGNATURE) ==
+               0) {
         mime_type = "image/jpeg";
     } else {
         mime_type = "";
@@ -119,9 +119,8 @@ file_retrieve_signature(int file_fd)
 __off_t
 file_retrieve_file_size(int file_fd)
 {
-    struct stat file_stat;
+ struct stat file_stat;
     fstat(file_fd, &file_stat);
 
     return file_stat.st_size;
-
 }
