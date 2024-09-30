@@ -7,6 +7,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "awsString.h"
+#include "errorCodes.h"
 #include "file.h"
 #include "http.h"
 #include "list.h"
@@ -60,219 +62,165 @@ http_retrieve_requested_ressource_path(
     return ressource_path;
 }
 
-static char *
+static errorCode
 http_build_html_body_for_folder_request(
     struct http_transaction *http_transaction)
 {
-    int nr_char;
-    int nr_entries_found;
+    assert(&http_transaction->response_body);
 
-    size_t html_page_head_length =
-        80 + 2 * strlen(http_transaction->requested_path) + 1;
-    char *html_page_head = malloc(html_page_head_length);
+    errorCode error;
+    struct file_list list;
 
-    if (!html_page_head) {
-        return NULL;
-    }
+    file_list_init(&list);
 
-    struct list *entries = file_list_folder_entries(
-        http_transaction->requested_path, &nr_entries_found);
+    error = file_list_retrieve_folder_entries(&list,
+                                              http_transaction->requested_path);
 
-    if (!entries) {
-        return NULL;
-    }
+    if (!error) {
+        error = awsStringAppendF(&http_transaction->response_body,
+                                 "<html>"
+                                 "<head><title>Index of %s </title></head> "
+                                 "<body>"
+                                 "<h1>Index of %s </h1>"
+                                 "<hr><pre>",
+                                 http_transaction->requested_path,
+                                 http_transaction->requested_path);
+        if (!error) {
+            struct entry *entry;
 
-    nr_char = snprintf(html_page_head, html_page_head_length,
-                       "<html>"
-                       "<head><title>Index of %s </title></head> "
-                       "<body>"
-                       "<h1>Index of %s </h1>"
-                       "<hr><pre>",
-                       http_transaction->requested_path,
-                       http_transaction->requested_path);
-
-    if (nr_char >= (int)html_page_head_length || nr_char < 0) {
-        free(entries);
-        free(html_page_head);
-        return NULL;
-    }
-
-    size_t html_page_body_length = ((23 + 2 * 256) * nr_entries_found);
-    char *html_page_body = malloc(html_page_body_length + 1);
-
-    if (!html_page_body) {
-        free(entries);
-        free(html_page_head);
-        return NULL;
-    }
-
-    nr_char = 0;
-    struct entry *entry;
-
-    list_for_each_entry(entries, entry, node)
-    {
-        if (entry->type == ENTRY_DIR) {
-            nr_char += snprintf(
-                html_page_body + nr_char, html_page_body_length - nr_char,
-                "<a href='%s/'>%s/</a><br>", entry->name, entry->name);
-        } else {
-            nr_char += snprintf(
-                html_page_body + nr_char, html_page_body_length - nr_char,
-                "<a href='%s'>%s</a><br>", entry->name, entry->name);
-        }
-
-        if (nr_char >= (int)html_page_body_length || nr_char < 0) {
-            free(html_page_head);
-            free(html_page_body);
-            free(entries);
-            return NULL;
+            list_for_each_entry(&list.entries, entry, node)
+            {
+                if (entry->type == ENTRY_DIR) {
+                    error = awsStringAppendF(&http_transaction->response_body,
+                                             "<a href='%s/'>%s/</a><br>",
+                                             entry->name, entry->name);
+                } else {
+                    error = awsStringAppendF(&http_transaction->response_body,
+                                             "<a href='%s'>%s</a><br>",
+                                             entry->name, entry->name);
+                }
+                if (error) {
+                    break;
+                }
+            }
         }
     }
 
-    const char *html_page_bottom = "</pre><hr></body></html>";
-    size_t html_page_bottom_length = strlen(html_page_body);
-
-    size_t html_page_length =
-        html_page_head_length + html_page_body_length + html_page_bottom_length;
-    char *html_page = malloc(html_page_length + 1);
-
-    if (!html_page) {
-        free(html_page_head);
-        free(html_page_body);
-        free(entries);
-        return NULL;
+    if (!error) {
+        error = awsStringAppendF(&http_transaction->response_body,
+                                 "</pre><hr></body></html>");
     }
 
-    strcpy(html_page, html_page_head);
-    strcat(html_page, html_page_body);
-    strcat(html_page, html_page_bottom);
+    file_list_cleanup(&list);
 
-    free(html_page_head);
-    free(html_page_body);
-    free(entries);
-
-    return html_page;
+    return error;
 }
 
 static void
 http_build_response_error(struct http_transaction *http_transaction)
 {
-    http_transaction->response = "HTTP/1.1 404 Not Found\r\n"
-                                 "Content-Type: text/plain\r\n"
-                                 "Content-Length: 13\r\n"
-                                 "Connection: close\r\n"
-                                 "\r\n"
-                                 "404 Not Found";
+    assert(&http_transaction->response_header);
+    assert(&http_transaction->response_body);
 
-    http_transaction->response_len = strlen(http_transaction->response);
+    awsStringAppendF(&http_transaction->response_header,
+                     "HTTP/1.1 404 Not Found\r\n"
+                     "Content-Type: text/plain\r\n"
+                     "Content-Length: 13\r\n"
+                     "Connection: close\r\n"
+                     "\r\n");
+
+    awsStringAppendF(&http_transaction->response_body, "404 Not Found");
 }
 
 static void
 http_build_response_for_folder_request(
     struct http_transaction *http_transaction)
 {
-    int nr_char;
-    char *http_body;
+    errorCode error;
 
-    http_body = http_build_html_body_for_folder_request(http_transaction);
+    error = http_build_html_body_for_folder_request(http_transaction);
 
-    if (http_body) {
-        size_t http_header_len = 63 + sizeof(size_t);
-        http_transaction->response_len = http_header_len + strlen(http_body);
-        http_transaction->response = malloc(http_transaction->response_len + 1);
-
-        if (!http_transaction->response) {
-            http_build_response_error(http_transaction);
-        } else {
-            nr_char = snprintf(http_transaction->response,
-                               http_transaction->response_len,
-                               "HTTP/1.1 200 OK\r\n"
-                               "Content-Type: text/html\r\n"
-                               "Content-Length: %lu\r\n"
-                               "\r\n"
-                               "%s",
-                               strlen(http_body), http_body);
-
-            if (nr_char >= (int)http_transaction->response_len || nr_char < 0) {
-                http_build_response_error(http_transaction);
-            }
-        }
-
-        free(http_body);
+    if (!error) {
+        awsStringAppendF(&http_transaction->response_header,
+                         "HTTP/1.1 200 OK\r\n"
+                         "Content-Type: text/html\r\n"
+                         "Content-Length: %lu\r\n"
+                         "\r\n",
+                         http_transaction->response_body.length);
     } else {
         http_build_response_error(http_transaction);
     }
+    printf("response header %s \n", http_transaction->response_header.pBuffer);
 }
 
 static void
 http_build_response_for_file_request(struct http_transaction *http_transaction)
 {
     const char *mime_type;
-    int nr_char;
+    errorCode error;
 
     int file_fd = open(http_transaction->requested_path, O_RDONLY);
+    FILE *file = fdopen(file_fd, "r");
 
     if (file_fd == -1) {
         http_build_response_error(http_transaction);
     } else {
-        mime_type = file_retrieve_signature(file_fd);
-        __off_t file_size = file_retrieve_file_size(file_fd);
+        mime_type = file_retrieve_signature(file);
+        off_t file_size = file_retrieve_file_size(file_fd);
 
-        int content_lenght_nr_digit =
-            (file_size == 0) ? 1 : log10(file_size) + 1;
-        int http_header_len = 53;
+        error = awsStringAppendF(&http_transaction->response_header,
+                                 "HTTP/1.1 200 OK\r\n"
+                                 "Content-Type: %s\r\n"
+                                 "Content-Length: %ld\r\n"
+                                 "\r\n",
+                                 mime_type, file_size);
 
-        http_transaction->response_len = http_header_len + strlen(mime_type) +
-                                         content_lenght_nr_digit + file_size;
-        http_transaction->response = malloc(http_transaction->response_len + 1);
+        if (!error) {
+            ssize_t bytes_read;
+            size_t offset = 0;
+            char *response = malloc(file_size + 1);
 
-        if (!http_transaction->response) {
-            http_build_response_error(http_transaction);
-        } else {
-            nr_char = snprintf(http_transaction->response,
-                               http_transaction->response_len,
-                               "HTTP/1.1 200 OK\r\n"
-                               "Content-Type: %s\r\n"
-                               "Content-Length: %ld\r\n"
-                               "\r\n",
-                               mime_type, file_size);
-
-            if (nr_char >= (int)http_transaction->response_len || nr_char < 0) {
-                http_build_response_error(http_transaction);
-            } else {
-                ssize_t bytes_read;
-                size_t offset = nr_char;
-
-                while ((bytes_read = read(
-                            file_fd, http_transaction->response + offset,
-                            http_transaction->response_len - offset)) > 0) {
-                    offset += bytes_read;
-                }
+            while ((bytes_read = read(file_fd, response + offset,
+                                            file_size - offset)) > 0) {
+                offset += bytes_read;
             }
+
+            error = awsStringAppendBuffer(&http_transaction->response_body,response,file_size);
+            free(response);
         }
+
+        if (error) {
+            http_build_response_error(http_transaction);
+        }
+
         close(file_fd);
+        fclose(file);
     }
 }
 
 static void
 http_build_response(struct http_transaction *http_transaction)
 {
-    unsigned int entry_type;
-    entry_type = file_find_entry_type(http_transaction->requested_path);
-    printf("entry type %d\n", entry_type);
+    unsigned int entry_kind;
+    entry_kind = file_find_entry_type(http_transaction->requested_path);
+    printf("entry type %d\n", entry_kind);
     printf("path %s\n", http_transaction->requested_path);
 
-    if (entry_type == ENTRY_DIR) {
+    if (entry_kind == ENTRY_DIR) {
         printf("it is a dir\n");
         http_build_response_for_folder_request(http_transaction);
-    } else if (entry_type == ENTRY_FILE) {
+    } else if (entry_kind == ENTRY_FILE) {
         printf("It is file\n");
         http_build_response_for_file_request(http_transaction);
     } else {
         printf("It is not known");
-        http_transaction->response_len = 0;
-        http_transaction->response = NULL;
+        http_build_response_error(http_transaction);
     }
+
+    awsStringAppend(&http_transaction->response,
+                    &http_transaction->response_header);
+    awsStringAppend(&http_transaction->response,
+                    &http_transaction->response_body);
 }
 
 struct http_transaction *
@@ -297,6 +245,11 @@ http_transaction_create(char *request)
     }
 
     http_transaction->requested_path = requested_path;
+
+    awsStringConstructEmpty(&http_transaction->response_header);
+    awsStringConstructEmpty(&http_transaction->response_body);
+    awsStringConstructEmpty(&http_transaction->response);
+
     http_build_response(http_transaction);
 
     return http_transaction;
@@ -307,9 +260,9 @@ http_transaction_destroy(struct http_transaction *http_transaction)
 {
     assert(http_transaction);
 
-    if (http_transaction->response) {
-        free(http_transaction->response);
-    }
+    awsStringDestroy(&http_transaction->response_header);
+    awsStringDestroy(&http_transaction->response_body);
+    awsStringDestroy(&http_transaction->response);
 
     free(http_transaction->requested_path);
     free(http_transaction);

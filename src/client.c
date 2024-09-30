@@ -43,9 +43,9 @@ client_run(void *arg)
 
                 if (http_transaction) {
 
-                    if (http_transaction->response) {
-                        send(client->fd, http_transaction->response,
-                             http_transaction->response_len, 0);
+                    if (http_transaction->response.pBuffer) {
+                        send(client->fd, http_transaction->response.pBuffer,
+                             http_transaction->response.length, 0);
                         http_transaction_destroy(http_transaction);
                     }
                 }

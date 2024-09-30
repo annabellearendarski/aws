@@ -4,14 +4,17 @@
 
 #include <stddef.h>
 
+#include "awsString.h"
+
 /*
  * http_transaction descriptor.
  */
 struct http_transaction {
     char *request;
-    char *response;
+    struct awsString response_header;
+    struct awsString response_body;
+    struct awsString response;
     char *requested_path;
-    size_t response_len;
 };
 
 /*

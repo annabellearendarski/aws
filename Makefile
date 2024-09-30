@@ -15,6 +15,7 @@ SOURCES = \
 	src/server.c \
 	src/http.c \
 	src/file.c \
+	src/awsString.c \
 	src/utils.S \
 
 OBJECTS = $(patsubst %.S,%.o,$(patsubst %.c,%.o,$(SOURCES)))
