@@ -14,7 +14,7 @@ struct http_transaction {
     struct awsString response_header;
     struct awsString response_body;
     struct awsString response;
-    char *requested_path;
+    struct awsString requested_path;
 };
 
 /*

@@ -202,10 +202,10 @@ server_poll(struct server *server)
     }
     server_close(server);
     goto out;
-    if (error != 0) {
+    /*if (error != 0) {
         server_close(server);
         goto out;
-    }
+    }*/
 
 out:
     return error;

@@ -26,7 +26,7 @@
  * which will result to GET / .Thus request needs to be at least 5 bytes when
  * GET is detected in the request.
  */
-static char *
+static errorCode
 http_retrieve_requested_ressource_path(
     struct http_transaction *http_transaction)
 {
@@ -34,37 +34,53 @@ http_retrieve_requested_ressource_path(
     int ressource_path_len;
     char *start_address_path;
     char *ressource_path;
+    bool isStartingWithDot = false;
+    errorCode error;
 
     if ((strncmp(http_transaction->request, "GET", 3) != 0) ||
         (strlen(http_transaction->request) < HTTP_MIN_SIZE_REQUESTED_PATH)) {
-        return NULL;
+        return INVALID_PARAMETER;
     }
 
     start_address_path = http_transaction->request + 4;
 
     end = start_address_path;
 
+    if (*end == '.') {
+        isStartingWithDot = true;
+    }
+
     while (*end != ' ') {
         end++;
     }
 
     ressource_path_len = (end - start_address_path) + 1;
-    ressource_path = malloc(ressource_path_len + 1 + 1);
+    ressource_path = malloc(ressource_path_len + 1);
 
     if (!ressource_path) {
-        return NULL;
+        return MALLOC_FAILED;
     }
 
-    ressource_path[0] = '.';
-    snprintf(ressource_path + 1, ressource_path_len, "%s\n",
-             start_address_path);
+    snprintf(ressource_path, ressource_path_len, "%s", start_address_path);
 
-    return ressource_path;
+    if (isStartingWithDot) {
+        error = awsStringAppendF(&http_transaction->requested_path,
+                                                "%s",
+                                                ressource_path);
+    } else {
+        error = awsStringAppendF(&http_transaction->requested_path,
+                                                ".%s",
+                                                ressource_path);
+    }
+
+    free(ressource_path);
+
+    return error;
 }
 
 static errorCode
 http_build_html_body_for_folder_request(
-    struct http_transaction *http_transaction)
+struct http_transaction *http_transaction)
 {
     assert(&http_transaction->response_body);
 
@@ -74,7 +90,7 @@ http_build_html_body_for_folder_request(
     file_list_init(&list);
 
     error = file_list_retrieve_folder_entries(&list,
-                                              http_transaction->requested_path);
+                                              http_transaction->requested_path.pBuffer);
 
     if (!error) {
         error = awsStringAppendF(&http_transaction->response_body,
@@ -83,8 +99,8 @@ http_build_html_body_for_folder_request(
                                  "<body>"
                                  "<h1>Index of %s </h1>"
                                  "<hr><pre>",
-                                 http_transaction->requested_path,
-                                 http_transaction->requested_path);
+                                 http_transaction->requested_path.pBuffer,
+                                 http_transaction->requested_path.pBuffer);
         if (!error) {
             struct entry *entry;
 
@@ -159,7 +175,7 @@ http_build_response_for_file_request(struct http_transaction *http_transaction)
     const char *mime_type;
     errorCode error;
 
-    int file_fd = open(http_transaction->requested_path, O_RDONLY);
+    int file_fd = open(http_transaction->requested_path.pBuffer, O_RDONLY);
     FILE *file = fdopen(file_fd, "r");
 
     if (file_fd == -1) {
@@ -202,9 +218,9 @@ static void
 http_build_response(struct http_transaction *http_transaction)
 {
     unsigned int entry_kind;
-    entry_kind = file_find_entry_type(http_transaction->requested_path);
+    entry_kind = file_find_entry_type(http_transaction->requested_path.pBuffer);
     printf("entry type %d\n", entry_kind);
-    printf("path %s\n", http_transaction->requested_path);
+    printf("path %s\n", http_transaction->requested_path.pBuffer);
 
     if (entry_kind == ENTRY_DIR) {
         printf("it is a dir\n");
@@ -227,7 +243,7 @@ struct http_transaction *
 http_transaction_create(char *request)
 {
     struct http_transaction *http_transaction;
-    char *requested_path;
+    errorCode error;
 
     http_transaction = malloc(sizeof(*http_transaction));
 
@@ -237,14 +253,13 @@ http_transaction_create(char *request)
 
     http_transaction->request = request;
 
-    requested_path = http_retrieve_requested_ressource_path(http_transaction);
+    awsStringConstructEmpty(&http_transaction->requested_path);
+    error = http_retrieve_requested_ressource_path(http_transaction);
 
-    if (!requested_path) {
+    if (error) {
         free(http_transaction);
         return NULL;
     }
-
-    http_transaction->requested_path = requested_path;
 
     awsStringConstructEmpty(&http_transaction->response_header);
     awsStringConstructEmpty(&http_transaction->response_body);
@@ -263,7 +278,7 @@ http_transaction_destroy(struct http_transaction *http_transaction)
     awsStringDestroy(&http_transaction->response_header);
     awsStringDestroy(&http_transaction->response_body);
     awsStringDestroy(&http_transaction->response);
+    awsStringDestroy(&http_transaction->requested_path);
 
-    free(http_transaction->requested_path);
     free(http_transaction);
 }

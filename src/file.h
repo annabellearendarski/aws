@@ -6,6 +6,13 @@
 #include "list.h"
 
 /*
+ * File list descriptor.
+ */
+struct file_list {
+    struct list entries;
+};
+
+/*
  * Entry descriptor.
  */
 struct entry {
@@ -25,29 +32,31 @@ typedef enum entry_type{
     ENTRY_UNK,
 } entry_type;
 
-struct file_list {
-    struct list entries;
-};
+/*
+ * Initialize the list of files
+ */
+void file_list_init(struct file_list *list);
 
 /*
- * Get the file mode (Dir, file, unknown).
+ * Clean up list of files.
  */
-entry_type file_find_entry_type(char *entry_path);
+void file_list_cleanup(struct file_list *list);
 
 /*
  * Given a path to a directory, list all entries under it.
  */
 errorCode file_list_retrieve_folder_entries(struct file_list *list, const char *dir_path);
 
-void file_list_cleanup(struct file_list *list);
-
-void file_list_init(struct file_list *list);
-
 /*
  * Get the mime type of a file.
  * Possible returned values are "application/pdf", "image/jpeg" , "".
  */
 const char * file_retrieve_signature(FILE *file);
+
+/*
+ * Get the file mode (Dir, file, unknown).
+ */
+entry_type file_find_entry_type(char *entry_path);
 
 /*
  * Get the size in bytes of a file.
