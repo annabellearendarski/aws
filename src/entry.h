@@ -6,9 +6,9 @@
 #include "list.h"
 
 /*
- * File list descriptor.
+ * Entry list descriptor.
  */
-struct file_list {
+struct entry_list {
     struct list entries;
 };
 
@@ -19,12 +19,10 @@ struct entry {
     unsigned int type;
     char *name;
     struct list node;
-    //size
-    //date
 };
 
 /*
- * Enum which describes possible file mode.
+ * Enum which describes possible entry mode.
  */
 typedef enum entry_type{
     ENTRY_DIR,
@@ -35,32 +33,28 @@ typedef enum entry_type{
 /*
  * Initialize the list of files
  */
-void file_list_init(struct file_list *list);
+void entry_list_init(struct entry_list *list);
 
 /*
- * Clean up list of files.
+ * Clean up list of entries.
  */
-void file_list_cleanup(struct file_list *list);
+void entry_list_cleanup(struct entry_list *list);
 
 /*
  * Given a path to a directory, list all entries under it.
  */
-errorCode file_list_retrieve_folder_entries(struct file_list *list, const char *dir_path);
-
-/*
- * Get the mime type of a file.
- * Possible returned values are "application/pdf", "image/jpeg" , "".
- */
-const char * file_retrieve_signature(FILE *file);
+int entry_list_retrieve_folder_entries(struct entry_list *list, const char *dir_path);
 
 /*
  * Get the file mode (Dir, file, unknown).
  */
-entry_type file_find_entry_type(char *entry_path);
+entry_type entry_find_type(char *entry_path);
 
 /*
  * Get the size in bytes of a file.
  */
 off_t file_retrieve_file_size(int file_fd);
+
+const char * entry_retrieve_content_type(const char *file_extension);
 
 #endif /* FILE_H */
