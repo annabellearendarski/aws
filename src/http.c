@@ -13,24 +13,31 @@
 #include "list.h"
 
 static int
-http_retrieve_requested_ressource_path(struct http_transaction *http_transaction)
+http_retrieve_requested_ressource_path(
+    struct http_transaction *http_transaction)
 {
-    int error;
+    int error = 0;
     struct aws_string extracted_path;
 
     aws_string_init_empty(&extracted_path);
 
-    error = aws_string_extract_between(&http_transaction->request, " \t"," \t\n", &extracted_path);
+    aws_string_extract_between(&http_transaction->request, " \t", " \t\n",
+                               &extracted_path);
 
-    if (!error) {
+    if (extracted_path.buffer) {
 
         if (extracted_path.buffer[0] != '.') {
-            error = aws_string_assign_format(&http_transaction->requested_path, ".%s", extracted_path.buffer);
+            error = aws_string_append_format(&http_transaction->requested_path,
+                                             ".%s", extracted_path.buffer);
         } else {
-            error = aws_string_assign_format(&http_transaction->requested_path, "%s", extracted_path.buffer);
+            error = aws_string_append_format(&http_transaction->requested_path,
+                                             "%s", extracted_path.buffer);
         }
 
         aws_string_destroy(&extracted_path);
+
+    } else {
+        error = EINVAL;
     }
 
     return error;
@@ -38,41 +45,43 @@ http_retrieve_requested_ressource_path(struct http_transaction *http_transaction
 
 static int
 http_build_html_body_for_folder_request(
-struct http_transaction *http_transaction)
+    struct http_transaction *http_transaction)
 {
     assert(&http_transaction->response_body);
 
-    int error;
+    int error = 0;
     struct entry_list list;
 
     entry_list_init(&list);
 
-    error = entry_list_retrieve_folder_entries(&list,
-                                              http_transaction->requested_path.buffer);
+    error = entry_list_retrieve_folder_entries(
+        &list, http_transaction->requested_path.buffer);
 
     if (!error) {
-        error = aws_string_assign_format(&http_transaction->response_body,
-                                 "<html>"
-                                 "<head><title>Index of %s </title></head> "
-                                 "<body>"
-                                 "<h1>Index of %s </h1>"
-                                 "<hr><pre>",
-                                 http_transaction->requested_path.buffer,
-                                 http_transaction->requested_path.buffer);
+        error =
+            aws_string_append_format(&http_transaction->response_body,
+                                     "<html>"
+                                     "<head><title>Index of %s </title></head> "
+                                     "<body>"
+                                     "<h1>Index of %s </h1>"
+                                     "<hr><pre>",
+                                     http_transaction->requested_path.buffer,
+                                     http_transaction->requested_path.buffer);
 
         if (!error) {
             struct entry *entry;
 
-            list_for_each_entry(&list.entries, entry, node) {
+            list_for_each_entry(&list.entries, entry, node)
+            {
 
                 if (entry->type == ENTRY_DIR) {
-                    error = aws_string_assign_format(&http_transaction->response_body,
-                                             "<a href='%s/'>%s/</a><br>",
-                                             entry->name, entry->name);
+                    error = aws_string_append_format(
+                        &http_transaction->response_body,
+                        "<a href='%s/'>%s/</a><br>", entry->name, entry->name);
                 } else {
-                    error = aws_string_assign_format(&http_transaction->response_body,
-                                             "<a href='%s'>%s</a><br>",
-                                             entry->name, entry->name);
+                    error = aws_string_append_format(
+                        &http_transaction->response_body,
+                        "<a href='%s'>%s</a><br>", entry->name, entry->name);
                 }
 
                 if (error) {
@@ -83,8 +92,8 @@ struct http_transaction *http_transaction)
     }
 
     if (!error) {
-        error = aws_string_assign_format(&http_transaction->response_body,
-                                 "</pre><hr></body></html>");
+        error = aws_string_append_format(&http_transaction->response_body,
+                                         "</pre><hr></body></html>");
     }
 
     entry_list_cleanup(&list);
@@ -98,34 +107,37 @@ http_build_response_error(struct http_transaction *http_transaction)
     assert(&http_transaction->response_header);
     assert(&http_transaction->response_body);
 
-    int error;
+    int error = 0;
 
-    error = aws_string_assign_format(&http_transaction->response_header,
-                     "HTTP/1.1 404 Not Found\r\n"
-                     "Content-Type: text/plain\r\n"
-                     "Content-Length: 13\r\n"
-                     "Connection: close\r\n"
-                     "\r\n");
+    error = aws_string_append_format(&http_transaction->response_header,
+                                     "HTTP/1.1 404 Not Found\r\n"
+                                     "Content-Type: text/plain\r\n"
+                                     "Content-Length: 13\r\n"
+                                     "Connection: close\r\n"
+                                     "\r\n");
 
-    error = aws_string_assign_format(&http_transaction->response_body, "404 Not Found");
+    error = aws_string_append_format(&http_transaction->response_body,
+                                     "404 Not Found");
 
     return error;
 }
 
 static int
-http_build_response_for_folder_request(struct http_transaction *http_transaction)
+http_build_response_for_folder_request(
+    struct http_transaction *http_transaction)
 {
-    int error;
+    int error = 0;
 
     error = http_build_html_body_for_folder_request(http_transaction);
 
     if (!error) {
-        aws_string_assign_format(&http_transaction->response_header,
-                         "HTTP/1.1 200 OK\r\n"
-                         "Content-Type: text/html\r\n"
-                         "Content-Length: %lu\r\n"
-                         "\r\n",
-                         http_transaction->response_body.length);
+        error =
+            aws_string_append_format(&http_transaction->response_header,
+                                     "HTTP/1.1 200 OK\r\n"
+                                     "Content-Type: text/html\r\n"
+                                     "Content-Length: %lu\r\n"
+                                     "\r\n",
+                                     http_transaction->response_body.length);
     } else {
         error = http_build_response_error(http_transaction);
     }
@@ -146,28 +158,30 @@ http_build_response_for_file_request(struct http_transaction *http_transaction)
     if (file_fd == -1) {
         error = http_build_response_error(http_transaction);
     } else {
-        file_extension = aws_string_extract_sub_string_after_last_dot(&http_transaction->requested_path);
-        printf("file extension %s\n",file_extension);
+        file_extension = aws_string_extract_after_last_dot(
+            &http_transaction->requested_path);
+        printf("file extension %s\n", file_extension);
         mime_type = entry_retrieve_content_type(file_extension);
         off_t file_size = file_retrieve_file_size(file_fd);
 
-        error = aws_string_assign_format(&http_transaction->response_header,
-                                 "HTTP/1.1 200 OK\r\n"
-                                 "Content-Type: %s\r\n"
-                                 "Content-Length: %ld\r\n"
-                                 "\r\n",
-                                 mime_type, file_size);
+        error = aws_string_append_format(&http_transaction->response_header,
+                                         "HTTP/1.1 200 OK\r\n"
+                                         "Content-Type: %s\r\n"
+                                         "Content-Length: %ld\r\n"
+                                         "\r\n",
+                                         mime_type, file_size);
         if (!error) {
             ssize_t bytes_read;
             size_t offset = 0;
             char *response = malloc(file_size + 1);
 
             while ((bytes_read = read(file_fd, response + offset,
-                                            file_size - offset)) > 0) {
+                                      file_size - offset)) > 0) {
                 offset += bytes_read;
             }
 
-            error = aws_string_append_buffer(&http_transaction->response_body,response,file_size);
+            error = aws_string_append_buffer(&http_transaction->response_body,
+                                             response, file_size);
             free(response);
         }
 
@@ -204,11 +218,13 @@ http_build_response(struct http_transaction *http_transaction)
     }
 
     if (!error) {
-        error = aws_string_append(&http_transaction->response, &http_transaction->response_header);
+        error = aws_string_append(&http_transaction->response,
+                                  &http_transaction->response_header);
     }
 
     if (!error) {
-        error = aws_string_append(&http_transaction->response, &http_transaction->response_body);
+        error = aws_string_append(&http_transaction->response,
+                                  &http_transaction->response_body);
     }
 
     return error;
@@ -218,7 +234,7 @@ struct http_transaction *
 http_transaction_create(char *request)
 {
     struct http_transaction *http_transaction;
-    int error;
+    int error = 0;
 
     http_transaction = malloc(sizeof(*http_transaction));
 
@@ -227,7 +243,8 @@ http_transaction_create(char *request)
     }
 
     aws_string_init_empty(&http_transaction->request);
-    error = aws_string_append_buffer(&http_transaction->request, request, strlen(request));
+    error = aws_string_append_buffer(&http_transaction->request, request,
+                                     strlen(request));
 
     if (!error) {
         aws_string_init_empty(&http_transaction->requested_path);

@@ -17,8 +17,8 @@ struct entry_file {
 };
 
 static const struct entry_file entry_files[] = {
-    { ".pdf", "application/pdf" },
-    { ".jpg", "image/jpeg" },
+    {".pdf", "application/pdf"},
+    {".jpg", "image/jpeg"},
 };
 
 entry_type
@@ -42,6 +42,21 @@ entry_find_type(char *entry_path)
     }
 }
 
+static void
+entry_set_type(struct entry *entry, char *entry_path)
+{
+    assert(entry);
+
+    entry->type = entry_find_type(entry_path);
+}
+
+static void
+entry_set_name(struct entry *entry, char *name)
+{
+    entry->name = malloc(strlen(name) + 1);
+    strcpy(entry->name, name);
+}
+
 void
 entry_list_init(struct entry_list *list)
 {
@@ -50,7 +65,8 @@ entry_list_init(struct entry_list *list)
 }
 
 int
-entry_list_retrieve_folder_entries(struct entry_list *list, const char *dir_path)
+entry_list_retrieve_folder_entries(struct entry_list *list,
+                                   const char *dir_path)
 {
     assert(list);
 
@@ -69,9 +85,8 @@ entry_list_retrieve_folder_entries(struct entry_list *list, const char *dir_path
             entry = malloc(sizeof(*entry));
 
             if (!errno) {
-                entry->name = malloc(strlen(next_dir_entry->d_name) + 1);
-                strcpy(entry->name, next_dir_entry->d_name);
-                entry->type = entry_find_type(next_dir_entry->d_name);
+                entry_set_name(entry, next_dir_entry->d_name);
+                entry_set_type(entry, next_dir_entry->d_name);
                 list_insert_head(&list->entries, &entry->node);
 
                 i++;
@@ -89,7 +104,7 @@ entry_list_cleanup(struct entry_list *list)
 {
     while (!list_empty(&list->entries)) {
         struct entry *entry =
-                list_first_entry(&list->entries, struct entry, node);
+            list_first_entry(&list->entries, struct entry, node);
         free(entry->name);
         list_remove(&entry->node);
     }

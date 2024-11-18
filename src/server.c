@@ -183,6 +183,7 @@ server_accept_client(struct server *server)
     client = server_alloc_client(server, fd);
 
     if (!client) {
+        printf("Fail to accept client fd %d\n", fd);
         return -1;
     }
 
@@ -197,7 +198,7 @@ server_poll(struct server *server)
     int error = 0;
     printf("Nr client %d\n", server->nr_clients);
 
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 10; i++) {
         error = server_accept_client(server);
     }
     server_close(server);

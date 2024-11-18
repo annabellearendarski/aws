@@ -22,7 +22,7 @@ struct entry {
 };
 
 /*
- * Enum which describes possible entry mode.
+ * Enum which describes possible entry type.
  */
 typedef enum entry_type{
     ENTRY_DIR,
@@ -46,7 +46,7 @@ void entry_list_cleanup(struct entry_list *list);
 int entry_list_retrieve_folder_entries(struct entry_list *list, const char *dir_path);
 
 /*
- * Get the file mode (Dir, file, unknown).
+ * find file type (Dir, file, unknown).
  */
 entry_type entry_find_type(char *entry_path);
 
