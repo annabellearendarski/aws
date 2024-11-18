@@ -28,6 +28,7 @@ client_run(void *arg)
         ssize_t nr_bytes_rcv;
 
         nr_bytes_rcv = recv(client->fd, buffer, sizeof(buffer), 0);
+        printf("nr bytes rcv %ld\n", nr_bytes_rcv);
 
         if (nr_bytes_rcv == -1) {
             perror("error : ");
