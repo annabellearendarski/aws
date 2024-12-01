@@ -13,7 +13,7 @@ aws_string_init_empty(struct aws_string *aws_string)
 {
     assert(aws_string);
 
-    aws_string->buffer = NULL;
+    aws_string->buffer = '\0';
     aws_string->length = 0;
     aws_string->error = 0;
 }
@@ -44,6 +44,7 @@ aws_string_append_format(struct aws_string *aws_string, char *format, ...)
             vsnprintf(&aws_string->buffer[aws_string->length], new_length + 1,
                       format, vlist);
             va_end(vlist);
+            aws_string->buffer[new_length] = '\0';
             aws_string->length = aws_string->length + new_length;
         }
     }
@@ -73,6 +74,37 @@ aws_string_append_buffer(struct aws_string *aws_string, const char *buffer,
         } else {
             memcpy(&aws_string->buffer[aws_string->length], buffer,
                    buffer_size);
+            aws_string->buffer[new_length] = '\0';
+            aws_string->length = new_length;
+        }
+    }
+
+    if (aws_string->error == 0) {
+        return 0;
+    } else {
+        return aws_string->error;
+    }
+}
+
+int
+aws_string_append_front_buffer(struct aws_string *aws_string,
+                               const char *buffer, size_t buffer_size)
+{
+    assert(aws_string);
+    assert(buffer);
+
+    size_t new_length;
+
+    if (aws_string->error == 0) {
+        new_length = aws_string->length + buffer_size;
+        aws_string->buffer =
+            memmove(aws_string->buffer + buffer_size, aws_string->buffer,
+                    aws_string->length + 1);
+
+        if (!aws_string->buffer) {
+            aws_string->error = errno;
+        } else {
+            memcpy(&aws_string->buffer[0], buffer, buffer_size);
             aws_string->buffer[new_length] = '\0';
             aws_string->length = new_length;
         }

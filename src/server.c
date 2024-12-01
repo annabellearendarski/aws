@@ -42,6 +42,7 @@ server_alloc_client(struct server *server, int fd)
     struct hlist *client_bucket;
 
     client = client_create(server, fd);
+
     if (!client) {
         return NULL;
     }

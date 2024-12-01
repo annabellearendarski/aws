@@ -13,8 +13,10 @@ SOURCES = \
 	src/main.c \
 	src/client.c \
 	src/server.c \
-	src/http.c \
+	src/http_request.c \
+	src/http_response.c \
 	src/entry.c \
+	src/aws_buffer.c \
 	src/aws_string.c \
 	src/utils.S \
 
