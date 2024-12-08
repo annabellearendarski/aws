@@ -137,7 +137,7 @@ http_response_add_response_for_file_request(struct http_response *response,
             offset += bytes_read;
         }
 
-        error = aws_buffer_append_format(&response->body,
+        error = aws_buffer_append_buffer(&response->body,
                                             temp_resp, file_size);
         free(temp_resp);
     }
@@ -157,5 +157,4 @@ http_response_destroy(struct http_response *http_response)
     aws_string_destroy(&http_response->header);
     aws_buffer_destroy(&http_response->body);
 
-    free(http_response);
 }

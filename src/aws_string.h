@@ -30,10 +30,13 @@ void aws_string_init_empty(struct aws_string *aws_string);
 int aws_string_append_format(struct aws_string *aws_string, char *format, ...);
 
 /*
- * Append formated a buffer to an aws_string instance.
+ * Append a buffer to an aws_string instance.
  */
 int aws_string_append_buffer(struct aws_string *aws_string, const char *buffer, size_t buffer_size);
 
+/*
+ * Append a buffer at the front of an aws_string instance.
+ */
 int aws_string_append_front_buffer(struct aws_string *aws_string,
                                    const char *buffer, size_t buffer_size);
 /*

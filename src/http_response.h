@@ -10,9 +10,6 @@
 /*
  * http_transaction descriptor.
  */
-
-// http_transaction => separate object request / separate object response
-
 struct http_response {
     struct aws_string header;
     struct aws_buffer body;
@@ -28,18 +25,27 @@ void http_response_init(struct http_response *http_response);
  */
 struct http_transaction * http_transaction_create(char *request);
 
-
+/*
+ * Build an http reponse to a folder request.
+ */
 int http_response_add_response_for_folder_request(struct http_response *response,
                                                   struct entry_list *list,
                                                   const char *requested_path);
 
+/*
+ * Build an http reponse to a file request.
+ */
 int
 http_response_add_response_for_file_request(struct http_response *response,
                                             const char *mime_type,
                                             off_t file_size,
                                             const int file_fd);
+/*
+ * Build an http error reponse.
+ */
 int
 http_response_add_response_error(struct http_response *response);
+
 /*
  * Destroy http_transaction object.
  */

@@ -31,7 +31,7 @@ typedef enum entry_type{
 } entry_type;
 
 /*
- * Initialize the list of files
+ * Initialize the list of entries
  */
 void entry_list_init(struct entry_list *list);
 
@@ -55,6 +55,10 @@ entry_type entry_find_type(char *entry_path);
  */
 off_t file_retrieve_file_size(int file_fd);
 
+/*
+ * Get the content type of a file.
+ * If not found return "text/html"
+ */
 const char * entry_retrieve_content_type(const char *file_extension);
 
 #endif /* FILE_H */

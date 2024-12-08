@@ -18,6 +18,12 @@ void aws_buffer_init_empty(struct aws_buffer *aws_buffer);
 int aws_buffer_append_format(struct aws_buffer *aws_buffer, char *format, ...);
 
 /*
+ * Append a buffer to an aws_buffer instance.
+ */
+int aws_buffer_append_buffer(struct aws_buffer *aws_buffer, const char *buffer,
+                            size_t buffer_size);
+
+/*
  * Free all allocated ressources.
  */
 void aws_buffer_destroy(struct aws_buffer *aws_buffer);

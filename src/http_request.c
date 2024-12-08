@@ -1,12 +1,13 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "aws_string.h"
 #include "http_request.h"
 
-#define HTTP_REQUEST_MAX_SIZE 576
+#define HTTP_REQUEST_MAX_SIZE 1024
 
 void
 http_request_init(struct http_request *http_request)
@@ -25,11 +26,10 @@ http_request_append(struct http_request *http_request, const char *buffer,
         return EINVAL;
     }
 
-    if (strcmp((buffer + (nr_bytes_rcv - 4)), "\r\n")) {
+    if ((*(buffer + (nr_bytes_rcv - 1)) == '\n') && (*(buffer + (nr_bytes_rcv - 1)) == '\n')) {
         is_end_of_request = true;
     }
 
-    http_request->request.length += nr_bytes_rcv;
     error = aws_string_append_buffer(&http_request->request, buffer,
                                     nr_bytes_rcv);
 

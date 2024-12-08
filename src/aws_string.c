@@ -72,6 +72,7 @@ aws_string_append_buffer(struct aws_string *aws_string, const char *buffer,
         if (!aws_string->buffer) {
             aws_string->error = errno;
         } else {
+
             memcpy(&aws_string->buffer[aws_string->length], buffer,
                    buffer_size);
             aws_string->buffer[new_length] = '\0';
@@ -97,9 +98,10 @@ aws_string_append_front_buffer(struct aws_string *aws_string,
 
     if (aws_string->error == 0) {
         new_length = aws_string->length + buffer_size;
-        aws_string->buffer =
+        aws_string->buffer = realloc(aws_string->buffer, new_length + 3);
+         printf("bufferaa %s \n",aws_string->buffer);
             memmove(aws_string->buffer + buffer_size, aws_string->buffer,
-                    aws_string->length + 1);
+                    aws_string->length);
 
         if (!aws_string->buffer) {
             aws_string->error = errno;

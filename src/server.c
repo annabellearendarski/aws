@@ -199,7 +199,7 @@ server_poll(struct server *server)
     int error = 0;
     printf("Nr client %d\n", server->nr_clients);
 
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 5; i++) {
         error = server_accept_client(server);
     }
     server_close(server);
