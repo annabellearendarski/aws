@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -221,7 +222,10 @@ aws_string_extract_between(struct aws_string *aws_string,
 
     if (!error) {
         end_index.cursor = start_index.cursor;
-        error = aws_string_iterate_until(&end_index, end_separators);
+
+        while ((*end_index.cursor != '\0') && !isspace(*end_index.cursor)) {
+            end_index.cursor++;
+        }
     }
 
     if (!error) {
