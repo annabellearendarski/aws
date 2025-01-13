@@ -14,82 +14,12 @@ aws_string_init_empty(struct aws_string *aws_string)
 {
     assert(aws_string);
 
-    aws_string->buffer = '\0';
-    aws_string->length = 0;
-    aws_string->error = 0;
+    aws_buffer_init_empty(&aws_string->buffer);
+    aws_string->buffer.is_string = true;
 }
 
 int
-aws_string_append_format(struct aws_string *aws_string, char *format, ...)
-{
-    assert(aws_string);
-
-    int new_length = 0;
-    size_t zero_size = 0;
-    char *p = NULL;
-    va_list vlist;
-
-    if (aws_string->error == 0) {
-        va_start(vlist, format);
-        new_length = vsnprintf(p, zero_size, format, vlist);
-        va_end(vlist);
-
-        aws_string->buffer =
-            realloc(aws_string->buffer, aws_string->length + new_length + 1);
-
-        if (!aws_string->buffer) {
-            aws_string->error = errno;
-        } else {
-            va_start(vlist, format);
-
-            vsnprintf(&aws_string->buffer[aws_string->length], new_length + 1,
-                      format, vlist);
-            va_end(vlist);
-            aws_string->buffer[new_length] = '\0';
-            aws_string->length = aws_string->length + new_length;
-        }
-    }
-
-    if (aws_string->error == 0) {
-        return 0;
-    } else {
-        return aws_string->error;
-    }
-}
-
-int
-aws_string_append_buffer(struct aws_string *aws_string, const char *buffer,
-                         size_t buffer_size)
-{
-    assert(aws_string);
-    assert(buffer);
-
-    size_t new_length;
-
-    if (aws_string->error == 0) {
-        new_length = aws_string->length + buffer_size;
-        aws_string->buffer = realloc(aws_string->buffer, new_length + 1);
-
-        if (!aws_string->buffer) {
-            aws_string->error = errno;
-        } else {
-
-            memcpy(&aws_string->buffer[aws_string->length], buffer,
-                   buffer_size);
-            aws_string->buffer[new_length] = '\0';
-            aws_string->length = new_length;
-        }
-    }
-
-    if (aws_string->error == 0) {
-        return 0;
-    } else {
-        return aws_string->error;
-    }
-}
-
-int
-aws_string_append_front_buffer(struct aws_string *aws_string,
+aws_string_insert_front_buffer(struct aws_string *aws_string,
                                const char *buffer, size_t buffer_size)
 {
     assert(aws_string);
@@ -97,26 +27,26 @@ aws_string_append_front_buffer(struct aws_string *aws_string,
 
     size_t new_length;
 
-    if (aws_string->error == 0) {
-        new_length = aws_string->length + buffer_size;
-        aws_string->buffer = realloc(aws_string->buffer, new_length + 3);
-         printf("bufferaa %s \n",aws_string->buffer);
-            memmove(aws_string->buffer + buffer_size, aws_string->buffer,
-                    aws_string->length);
+    if (aws_string->buffer.error == 0) {
+        new_length = aws_string->buffer.length + buffer_size;
+        aws_string->buffer.buffer = realloc(aws_string->buffer.buffer, new_length + 3);
+        printf("bufferaa %s \n", aws_string->buffer.buffer);
+        memmove(aws_string->buffer.buffer + buffer_size, aws_string->buffer.buffer,
+                aws_string->buffer.length);
 
-        if (!aws_string->buffer) {
-            aws_string->error = errno;
+        if (!aws_string->buffer.buffer) {
+            aws_string->buffer.error = errno;
         } else {
-            memcpy(&aws_string->buffer[0], buffer, buffer_size);
-            aws_string->buffer[new_length] = '\0';
-            aws_string->length = new_length;
+            memcpy(&aws_string->buffer.buffer[0], buffer, buffer_size);
+            aws_string->buffer.buffer[new_length] = '\0';
+            aws_string->buffer.length = new_length;
         }
     }
 
-    if (aws_string->error == 0) {
+    if (aws_string->buffer.error == 0) {
         return 0;
     } else {
-        return aws_string->error;
+        return aws_string->buffer.error;
     }
 }
 
@@ -129,34 +59,26 @@ aws_string_append(struct aws_string *aws_string,
 
     size_t length;
 
-    if (aws_string->error == 0) {
-        length = aws_string->length + aws_string_to_append->length;
+    if (aws_string->buffer.error == 0) {
+        length = aws_string->buffer.length + aws_string_to_append->buffer.length;
 
-        aws_string->buffer = realloc(aws_string->buffer, length + 1);
+        aws_string->buffer.buffer = realloc(aws_string->buffer.buffer, length + 1);
 
-        if (!aws_string->buffer) {
-            aws_string->error = errno;
+        if (!aws_string->buffer.buffer) {
+            aws_string->buffer.error = errno;
         } else {
-            memcpy(&aws_string->buffer[aws_string->length],
-                   aws_string_to_append->buffer,
-                   aws_string_to_append->length + 1);
-            aws_string->length = length;
+            memcpy(&aws_string->buffer.buffer[aws_string->buffer.length],
+                   aws_string_to_append->buffer.buffer,
+                   aws_string_to_append->buffer.length + 1);
+            aws_string->buffer.length = length;
         }
     }
 
-    if (aws_string->error == 0) {
+    if (aws_string->buffer.error == 0) {
         return 0;
     } else {
-        return aws_string->error;
+        return aws_string->buffer.error;
     }
-}
-
-void
-aws_string_destroy(struct aws_string *aws_string)
-{
-    assert(aws_string);
-
-    free(aws_string->buffer);
 }
 
 char *
@@ -164,7 +86,7 @@ aws_string_extract_after_last_dot(struct aws_string *aws_string)
 {
     assert(aws_string);
 
-    char *sub_string = strrchr(aws_string->buffer, '.');
+    char *sub_string = strrchr(aws_string->buffer.buffer, '.');
 
     return sub_string;
 }
@@ -217,7 +139,7 @@ aws_string_extract_between(struct aws_string *aws_string,
     int error;
     size_t length;
 
-    start_index.cursor = aws_string->buffer;
+    start_index.cursor = aws_string->buffer.buffer;
     error = aws_string_iterate_until(&start_index, start_separators);
 
     if (!error) {
@@ -230,10 +152,10 @@ aws_string_extract_between(struct aws_string *aws_string,
 
     if (!error) {
         length = ((end_index.cursor - 2) - start_index.cursor) + 1;
-        error = aws_string_append_buffer(result, start_index.cursor, length);
+        error = aws_buffer_append_buffer(&result->buffer, start_index.cursor, length);
     }
 
     if (error) {
-        result->buffer = NULL;
+        result->buffer.buffer = NULL;
     }
 }

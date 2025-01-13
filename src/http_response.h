@@ -4,8 +4,9 @@
 
 #include <stddef.h>
 
-#include "aws_string.h"
 #include "aws_buffer.h"
+#include "aws_string.h"
+
 
 /*
  * http_transaction descriptor.

@@ -16,6 +16,8 @@ aws_buffer_init_empty(struct aws_buffer *aws_buffer)
     aws_buffer->buffer = NULL;
     aws_buffer->length = 0;
     aws_buffer->error = 0;
+    aws_buffer->is_string = false;
+
 }
 
 int
@@ -38,6 +40,10 @@ aws_buffer_append_buffer(struct aws_buffer *aws_buffer, const char *buffer,
             memcpy(&aws_buffer->buffer[aws_buffer->length], buffer,
                    buffer_size);
             aws_buffer->length = new_length;
+
+            if (aws_buffer->is_string) {
+                aws_buffer->buffer[new_length] = '\0';
+            }
         }
     }
 
@@ -75,6 +81,10 @@ aws_buffer_append_format(struct aws_buffer *aws_buffer, char *format, ...)
                       format, vlist);
             va_end(vlist);
 
+            if (aws_buffer->is_string) {
+                aws_buffer->buffer[new_length] = '\0';
+            }
+
             aws_buffer->length = aws_buffer->length + new_length;
         }
     }
@@ -93,4 +103,3 @@ aws_buffer_destroy(struct aws_buffer *aws_buffer)
 
     free(aws_buffer->buffer);
 }
-

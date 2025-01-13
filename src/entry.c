@@ -107,6 +107,7 @@ entry_list_cleanup(struct entry_list *list)
             list_first_entry(&list->entries, struct entry, node);
         free(entry->name);
         list_remove(&entry->node);
+        free(entry);
     }
 }
 

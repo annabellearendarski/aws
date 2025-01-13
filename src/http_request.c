@@ -22,16 +22,18 @@ http_request_append(struct http_request *http_request, const char *buffer,
     int error = 0;
     bool is_end_of_request = false;
 
-    if ((http_request->request.length + nr_bytes_rcv) > HTTP_REQUEST_MAX_SIZE) {
+    if ((http_request->request.buffer.length + nr_bytes_rcv)
+         > HTTP_REQUEST_MAX_SIZE) {
         return EINVAL;
     }
 
-    if ((*(buffer + (nr_bytes_rcv - 1)) == '\n') && (*(buffer + (nr_bytes_rcv - 1)) == '\n')) {
+    if ((*(buffer + (nr_bytes_rcv - 1)) == '\n') &&
+        (*(buffer + (nr_bytes_rcv - 1)) == '\n')) {
         is_end_of_request = true;
     }
 
-    error = aws_string_append_buffer(&http_request->request, buffer,
-                                    nr_bytes_rcv);
+    error = aws_buffer_append_buffer(&http_request->request.buffer, buffer,
+                                     nr_bytes_rcv);
 
     if (error) {
         return EINVAL;
@@ -51,11 +53,10 @@ http_retrieve_requested_ressource_path(struct http_request *http_request,
     aws_string_extract_between(&http_request->request, " \t", " \t\n",
                                extracted_path);
 
-    if (extracted_path->buffer) {
+    if (extracted_path->buffer.buffer) {
 
-        if (extracted_path->buffer[0] != '.') {
-            error =
-                aws_string_append_front_buffer(extracted_path, ".", 1);
+        if (extracted_path->buffer.buffer[0] != '.') {
+            error = aws_string_insert_front_buffer(extracted_path, ".", 1);
         }
 
     } else {
@@ -70,5 +71,5 @@ http_request_destroy(struct http_request *http_request)
 {
     assert(http_request);
 
-    aws_string_destroy(&http_request->request);
+    aws_buffer_destroy(&http_request->request.buffer);
 }

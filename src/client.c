@@ -15,8 +15,8 @@
 
 
 static int
-client_build_http_response(struct client *client, struct http_request *request,
-                           struct http_response *response)
+build_http_response(struct http_request *request,
+                    struct http_response *response)
 {
     int error = 0;
     unsigned int entry_kind;
@@ -28,10 +28,10 @@ client_build_http_response(struct client *client, struct http_request *request,
     error = http_retrieve_requested_ressource_path(request, &extracted_path);
 
     if (!error) {
-        entry_kind = entry_find_type(extracted_path.buffer);
+        entry_kind = entry_find_type(extracted_path.buffer.buffer);
 
         printf("entry type %d\n", entry_kind);
-        printf("path %s\n", extracted_path.buffer);
+        printf("path %s\n", extracted_path.buffer.buffer);
 
         if (entry_kind == ENTRY_DIR) {
             printf("it is a dir\n");
@@ -40,16 +40,16 @@ client_build_http_response(struct client *client, struct http_request *request,
             entry_list_init(&list);
 
             error = entry_list_retrieve_folder_entries(&list,
-                                                       extracted_path.buffer);
+                                                       extracted_path.buffer.buffer);
 
             error = http_response_add_response_for_folder_request(
-                response, &list, extracted_path.buffer);
+                response, &list, extracted_path.buffer.buffer);
 
             entry_list_cleanup(&list);
 
         } else if (entry_kind == ENTRY_FILE) {
             printf("It is file\n");
-            int file_fd = open(extracted_path.buffer, O_RDONLY);
+            int file_fd = open(extracted_path.buffer.buffer, O_RDONLY);
             FILE *file = fdopen(file_fd, "r");
             const char *mime_type;
             const char *file_extension;
@@ -74,7 +74,7 @@ client_build_http_response(struct client *client, struct http_request *request,
             error = http_response_add_response_error(response);
         }
 
-        aws_string_destroy(&extracted_path);
+        aws_buffer_destroy(&extracted_path.buffer);
     }
     return error;
 }
@@ -117,21 +117,17 @@ client_run(void *arg)
 
                 if (!error) {
                     struct http_response http_response;
-                    error = client_build_http_response(client, &http_request,
-                                                       &http_response);
+                    error = build_http_response(&http_request, &http_response);
 
-                    send(client->fd,
-                         http_response.header
-                             .buffer, // possibly send bytes per bytes
-                         http_response.header.length, 0);
-                    send(client->fd,
-                         http_response.body
-                             .buffer, // possibly send bytes per bytes
+                    send(client->fd, http_response.header.buffer.buffer,
+                         http_response.header.buffer.length, 0);
+                    send(client->fd, http_response.body.buffer,
                          http_response.body.length, 0);
 
                     http_request_destroy(&http_request);
                     http_response_destroy(&http_response);
                     is_request_init = false;
+                    break;
                 }
             }
         }
@@ -153,9 +149,11 @@ client_create(struct server *server, int fd)
     int error;
 
     client = malloc(sizeof(*client));
+
     if (!client) {
         return NULL;
     }
+
     client->server = server;
     client->fd = fd;
 

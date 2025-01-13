@@ -25,8 +25,9 @@ static int
 http_build_html_body_for_folder_request(
     struct http_response *response, struct entry_list *list, const char *requested_path)
 {
-    assert(&response->body);
-    int error = 0;
+    int error;
+
+    assert(response);
 
     error =
         aws_buffer_append_format(&response->body,
@@ -41,9 +42,7 @@ http_build_html_body_for_folder_request(
     if (!error) {
         struct entry *entry;
 
-        list_for_each_entry(&list->entries, entry, node)
-        {
-
+        list_for_each_entry(&list->entries, entry, node) {
             if (entry->type == ENTRY_DIR) {
                 error = aws_buffer_append_format(
                     &response->body,
@@ -76,7 +75,7 @@ http_response_add_response_error(struct http_response *response)
 
     int error = 0;
 
-    error = aws_string_append_format(&response->header,
+    error = aws_buffer_append_format(&response->header.buffer,
                                      "HTTP/1.1 404 Not Found\r\n"
                                      "Content-Type: text/plain\r\n"
                                      "Content-Length: 13\r\n"
@@ -100,7 +99,7 @@ http_response_add_response_for_folder_request(
 
     if (!error) {
         error =
-            aws_string_append_format(&response->header,
+            aws_buffer_append_format(&response->header.buffer,
                                      "HTTP/1.1 200 OK\r\n"
                                      "Content-Type: text/html\r\n"
                                      "Content-Length: %lu\r\n"
@@ -121,7 +120,7 @@ http_response_add_response_for_file_request(struct http_response *response,
 {
     int error = 0;
 
-    error = aws_string_append_format(&response->header,
+    error = aws_buffer_append_format(&response->header.buffer,
                                         "HTTP/1.1 200 OK\r\n"
                                         "Content-Type: %s\r\n"
                                         "Content-Length: %ld\r\n"
@@ -154,7 +153,7 @@ http_response_destroy(struct http_response *http_response)
 {
     assert(http_response);
 
-    aws_string_destroy(&http_response->header);
+    aws_buffer_destroy(&http_response->header.buffer);
     aws_buffer_destroy(&http_response->body);
 
 }

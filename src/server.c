@@ -24,6 +24,7 @@ utils_memcpy(const void *src, void *dest, size_t n);
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_inc = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond_nr_clients = PTHREAD_COND_INITIALIZER;
 
 static struct hlist *
 server_get_client_bucket(struct server *server, const int fd)
@@ -74,6 +75,8 @@ server_remove_client(struct server *server, struct client *client)
     hlist_remove(&client->node);
     server->nr_clients--;
 
+    pthread_cond_signal(&cond_nr_clients);
+
     pthread_mutex_unlock(&mutex);
 }
 
@@ -82,7 +85,18 @@ server_close(struct server *server)
 {
     assert(server);
 
+    pthread_mutex_lock(&mutex);
+
+    while(server->nr_clients != 0) {
+        printf("Waiting client threads to finish\n");
+        pthread_cond_wait(&cond_nr_clients, &mutex);
+    }
+
+    pthread_mutex_unlock(&mutex);
+
     server_cleanup(server);
+    pthread_mutex_destroy(&mutex);
+    pthread_cond_destroy(&cond_nr_clients);
     close(server->fd);
 }
 
@@ -104,8 +118,8 @@ server_init(struct server *server)
     }
 
     reuseaddr = 1;
-    result =
-        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(reuseaddr));
+    result = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr,
+                        sizeof(reuseaddr));
 
     if (result == -1) {
         error = errno;
