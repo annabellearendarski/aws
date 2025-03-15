@@ -9,7 +9,6 @@
 /*
  * http_request descriptor.
  */
-
 struct http_request {
     struct aws_string request;
 };

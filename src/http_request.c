@@ -22,7 +22,7 @@ http_request_append(struct http_request *http_request, const char *buffer,
     int error = 0;
     bool is_end_of_request = false;
 
-    if ((http_request->request.buffer.length + nr_bytes_rcv)
+    if ((aws_string_get_length(&http_request->request) + nr_bytes_rcv)
          > HTTP_REQUEST_MAX_SIZE) {
         return EINVAL;
     }
@@ -32,7 +32,7 @@ http_request_append(struct http_request *http_request, const char *buffer,
         is_end_of_request = true;
     }
 
-    error = aws_buffer_append_buffer(&http_request->request.buffer, buffer,
+    error = aws_string_append_buffer(&http_request->request, buffer,
                                      nr_bytes_rcv);
 
     if (error) {
@@ -49,14 +49,18 @@ http_retrieve_requested_ressource_path(struct http_request *http_request,
                                        struct aws_string *extracted_path)
 {
     int error = 0;
+    char *path;
 
+    printf("request %s\n", aws_string_get_buffer(&http_request->request));
     aws_string_extract_between(&http_request->request, " \t", " \t\n",
                                extracted_path);
 
-    if (extracted_path->buffer.buffer) {
+    path = aws_string_get_buffer(extracted_path);
 
-        if (extracted_path->buffer.buffer[0] != '.') {
-            error = aws_string_insert_front_buffer(extracted_path, ".", 1);
+    if (path) {
+
+        if (path[0] != '.') {
+            error = aws_string_append_front(extracted_path, ".", 1);
         }
 
     } else {
@@ -71,5 +75,5 @@ http_request_destroy(struct http_request *http_request)
 {
     assert(http_request);
 
-    aws_buffer_destroy(&http_request->request.buffer);
+    aws_string_destroy(&http_request->request);
 }

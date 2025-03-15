@@ -98,13 +98,12 @@ http_response_add_response_for_folder_request(
     error = http_build_html_body_for_folder_request(response, list, requested_path);
 
     if (!error) {
-        error =
-            aws_buffer_append_format(&response->header.buffer,
+        error = aws_buffer_append_format(&response->header.buffer,
                                      "HTTP/1.1 200 OK\r\n"
                                      "Content-Type: text/html\r\n"
                                      "Content-Length: %lu\r\n"
                                      "\r\n",
-                                     response->body.length);
+                                     aws_buffer_get_length(&response->body));
     } else {
         error = http_response_add_response_error(response);
     }
@@ -153,7 +152,7 @@ http_response_destroy(struct http_response *http_response)
 {
     assert(http_response);
 
-    aws_buffer_destroy(&http_response->header.buffer);
+    aws_string_destroy(&http_response->header);
     aws_buffer_destroy(&http_response->body);
 
 }

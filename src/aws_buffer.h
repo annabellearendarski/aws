@@ -19,6 +19,16 @@ struct aws_buffer {
 void aws_buffer_init_empty(struct aws_buffer *aws_buffer);
 
 /*
+ * Get buffer from aws_buffer object.
+ */
+char * aws_buffer_get_buffer(struct aws_buffer *aws_buffer);
+
+/*
+ * Get the length of the buffer.
+ */
+int aws_buffer_get_length(struct aws_buffer *aws_buffer);
+
+/*
  * Free all allocated ressources.
  */
 void aws_buffer_destroy(struct aws_buffer *aws_buffer);
@@ -33,5 +43,10 @@ int aws_buffer_append_format(struct aws_buffer *aws_buffer, char *format, ...);
  */
 int aws_buffer_append_buffer(struct aws_buffer *aws_buffer, const char *buffer,
                             size_t buffer_size);
+
+/*
+ * Insert a buffer at the front of an aws_buffer instance.
+ */
+int aws_buffer_append_front(struct aws_buffer *aws_buffer, const char *buffer, int buffer_size);
 
 #endif /* AWS_BUFFER_H */
