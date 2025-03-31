@@ -75,7 +75,7 @@ http_response_add_response_error(struct http_response *response)
 
     int error = 0;
 
-    error = aws_buffer_append_format(&response->header.buffer,
+    error = aws_buffer_append_format(aws_string_get_buffer2(&response->header),
                                      "HTTP/1.1 404 Not Found\r\n"
                                      "Content-Type: text/plain\r\n"
                                      "Content-Length: 13\r\n"
@@ -98,7 +98,7 @@ http_response_add_response_for_folder_request(
     error = http_build_html_body_for_folder_request(response, list, requested_path);
 
     if (!error) {
-        error = aws_buffer_append_format(&response->header.buffer,
+        error = aws_buffer_append_format(aws_string_get_buffer2(&response->header),
                                      "HTTP/1.1 200 OK\r\n"
                                      "Content-Type: text/html\r\n"
                                      "Content-Length: %lu\r\n"
@@ -119,7 +119,7 @@ http_response_add_response_for_file_request(struct http_response *response,
 {
     int error = 0;
 
-    error = aws_buffer_append_format(&response->header.buffer,
+    error = aws_buffer_append_format(aws_string_get_buffer2(&response->header),
                                         "HTTP/1.1 200 OK\r\n"
                                         "Content-Type: %s\r\n"
                                         "Content-Length: %ld\r\n"

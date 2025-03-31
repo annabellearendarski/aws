@@ -15,13 +15,19 @@ aws_string_init_empty(struct aws_string *aws_string)
     assert(aws_string);
 
     aws_buffer_init_empty(&aws_string->buffer);
-    aws_string->buffer.is_string = true;
+    aws_string_set_is_string(aws_string, true);
 }
 
 void
 aws_string_destroy(struct aws_string *aws_string)
 {
     aws_buffer_destroy(&aws_string->buffer);
+}
+
+void
+aws_string_set_is_string(struct aws_string *aws_string, bool is_string)
+{
+    aws_buffer_set_is_string(&aws_string->buffer, is_string);
 }
 
 int
@@ -36,6 +42,18 @@ aws_string_get_buffer(struct aws_string *aws_string)
     return aws_buffer_get_buffer(&aws_string->buffer);
 }
 
+struct aws_buffer *
+aws_string_get_buffer2(struct aws_string *aws_string)
+{
+    return &(aws_string->buffer);
+}
+
+int
+aws_string_get_error(struct aws_string *aws_string)
+{
+    return aws_buffer_get_error(&aws_string->buffer);
+}
+
 int
 aws_string_append_front(struct aws_string *aws_string,
                                const char *buffer, size_t buffer_size)
@@ -45,7 +63,7 @@ aws_string_append_front(struct aws_string *aws_string,
 
     int error = 0;
 
-    if (aws_string->buffer.error == 0) {
+    if (aws_string_get_error(aws_string) == 0) {
         error = aws_buffer_append_front(&(aws_string)->buffer, buffer, buffer_size);
     }
 
@@ -61,7 +79,7 @@ aws_string_append_buffer(struct aws_string *aws_string,
 
     int error = 0;
 
-    if (aws_string->buffer.error == 0) {
+    if (aws_string_get_error(aws_string) == 0) {
         error = aws_buffer_append_buffer(&(aws_string)->buffer, buffer, buffer_size);
     }
 

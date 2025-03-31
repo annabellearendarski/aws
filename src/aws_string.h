@@ -29,6 +29,11 @@ void aws_string_init_empty(struct aws_string *aws_string);
 void aws_string_destroy(struct aws_string *aws_string);
 
 /*
+ * Set is_string attribute of aws_string object.
+ */
+void aws_string_set_is_string(struct aws_string *aws_string, bool is_string);
+
+/*
  * Get string length.
  */
 int aws_string_get_length(struct aws_string *aws_string);
@@ -37,6 +42,12 @@ int aws_string_get_length(struct aws_string *aws_string);
  * Get string buffer.
  */
 char * aws_string_get_buffer(struct aws_string *aws_string);
+
+struct aws_buffer * aws_string_get_buffer2(struct aws_string *aws_string);
+/*
+ * Get error status.
+ */
+int aws_string_get_error(struct aws_string *aws_string);
 
 /*
  * Insert a buffer at the front of an aws_string instance.

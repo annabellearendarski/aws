@@ -26,12 +26,13 @@ build_http_response(struct http_request *request,
 
     aws_string_init_empty(&extracted_path);
     error = http_retrieve_requested_ressource_path(request, &extracted_path);
+    char *extracted_path_buffer = aws_string_get_buffer(&extracted_path);
 
     if (!error) {
-        entry_kind = entry_find_type(extracted_path.buffer.buffer);
+        entry_kind = entry_find_type(extracted_path_buffer);
 
         printf("entry type %d\n", entry_kind);
-        printf("path %s\n", extracted_path.buffer.buffer);
+        printf("path %s\n", extracted_path_buffer);
 
         if (entry_kind == ENTRY_DIR) {
             printf("it is a dir\n");
@@ -40,16 +41,16 @@ build_http_response(struct http_request *request,
             entry_list_init(&list);
 
             error = entry_list_retrieve_folder_entries(&list,
-                                                       extracted_path.buffer.buffer);
+                                                       extracted_path_buffer);
 
             error = http_response_add_response_for_folder_request(
-                response, &list, extracted_path.buffer.buffer);
+                response, &list, extracted_path_buffer);
 
             entry_list_cleanup(&list);
 
         } else if (entry_kind == ENTRY_FILE) {
             printf("It is file\n");
-            int file_fd = open(extracted_path.buffer.buffer, O_RDONLY);
+            int file_fd = open(extracted_path_buffer, O_RDONLY);
             FILE *file = fdopen(file_fd, "r");
             const char *mime_type;
             const char *file_extension;
@@ -74,7 +75,7 @@ build_http_response(struct http_request *request,
             error = http_response_add_response_error(response);
         }
 
-        aws_buffer_destroy(&extracted_path.buffer);
+        aws_string_destroy(&extracted_path);
     }
     return error;
 }
@@ -119,10 +120,10 @@ client_run(void *arg)
                     struct http_response http_response;
                     error = build_http_response(&http_request, &http_response);
 
-                    send(client->fd, http_response.header.buffer.buffer,
-                         http_response.header.buffer.length, 0);
-                    send(client->fd, http_response.body.buffer,
-                         http_response.body.length, 0);
+                    send(client->fd, aws_string_get_buffer(&http_response.header),
+                    aws_string_get_length(&http_response.header), 0);
+                    send(client->fd, aws_buffer_get_buffer(&http_response.body),
+                    aws_buffer_get_length(&http_response.body), 0);
 
                     http_request_destroy(&http_request);
                     http_response_destroy(&http_response);

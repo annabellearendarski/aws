@@ -28,16 +28,36 @@ aws_buffer_destroy(struct aws_buffer *aws_buffer)
     free(aws_buffer->buffer);
 }
 
-char*
+void
+aws_buffer_set_is_string(struct aws_buffer *aws_buffer, bool is_string)
+{
+    assert(aws_buffer);
+
+    aws_buffer->is_string = is_string;
+}
+
+char *
 aws_buffer_get_buffer(struct aws_buffer *aws_buffer)
 {
+    assert(aws_buffer);
+
     return aws_buffer->buffer;
 }
 
 int
 aws_buffer_get_length(struct aws_buffer *aws_buffer)
 {
+    assert(aws_buffer);
+
     return aws_buffer->length;
+}
+
+int
+aws_buffer_get_error(struct aws_buffer *aws_buffer)
+{
+    assert(aws_buffer);
+
+    return aws_buffer->error;
 }
 
 int

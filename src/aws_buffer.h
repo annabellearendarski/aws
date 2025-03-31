@@ -19,6 +19,11 @@ struct aws_buffer {
 void aws_buffer_init_empty(struct aws_buffer *aws_buffer);
 
 /*
+ * Set is_string attribute.
+ */
+void aws_buffer_set_is_string(struct aws_buffer *aws_buffer, bool is_string);
+
+/*
  * Get buffer from aws_buffer object.
  */
 char * aws_buffer_get_buffer(struct aws_buffer *aws_buffer);
@@ -27,6 +32,11 @@ char * aws_buffer_get_buffer(struct aws_buffer *aws_buffer);
  * Get the length of the buffer.
  */
 int aws_buffer_get_length(struct aws_buffer *aws_buffer);
+
+/*
+ * Get error status of the aws_buffer object.
+ */
+int aws_buffer_get_error(struct aws_buffer *aws_buffer);
 
 /*
  * Free all allocated ressources.
